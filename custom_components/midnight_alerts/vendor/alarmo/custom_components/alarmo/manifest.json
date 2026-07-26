@@ -1,6 +1,6 @@
 {
   "domain": "alarmo",
-  "name": "Alarmo",
+  "name": "Midnight 911 – Alarm Panel",
   "after_dependencies": [
     "mqtt",
     "notify"

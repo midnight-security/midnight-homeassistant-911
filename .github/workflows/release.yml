@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
@@ -39,8 +38,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Create Zip
         run: cd custom_components/midnight_alerts && zip -r midnight_alerts.zip . -x 'midnight_alerts.zip' -x 'vendor/alarmo/.git*' -x 'vendor/alarmo/tests/*' -x 'vendor/alarmo/screenshots/*' -x 'vendor/alarmo/.github/*' -x 'vendor/alarmo/pyproject.toml' -x 'vendor/alarmo/uv.lock' -x 'vendor/alarmo/.pre-commit-config.yaml' -x 'vendor/alarmo/pytest.ini' -x 'vendor/alarmo/DEVELOPMENT.md' -x 'vendor/alarmo/README.md' -x 'vendor/alarmo/.gitignore' -x 'vendor/alarmo/hacs.json'

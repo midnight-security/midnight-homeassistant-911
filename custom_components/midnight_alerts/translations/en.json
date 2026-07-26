@@ -2,17 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "data": {
-          "api_key": "API Key"
-        }
+        "description": "Add Midnight 911 to Home Assistant. You'll be able to add your API key afterward from this integration's Configure option."
       }
-    },
-    "error": {
-      "invalid_auth": "Invalid API key",
-      "cannot_connect": "Failed to connect to Midnight Alerts"
     },
     "abort": {
       "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Enter your Midnight 911 API key. You can create or find your key at {account_url}.",
+        "data": {
+          "api_key": "API Key"
+        }
+      },
+      "verified": {
+        "title": "API key verified",
+        "description": "✅ Your Midnight 911 API key is valid and connected."
+      }
+    },
+    "error": {
+      "invalid_auth": "That API key isn't valid. Create or copy your key at {account_url}, then try again.",
+      "cannot_connect": "Couldn't reach Midnight Alerts to verify the key. Check your connection and try again."
     }
   }
 }

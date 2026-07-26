@@ -4,6 +4,7 @@ import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -28,9 +29,9 @@ class MidnightAlertButton(ButtonEntity):
 
     _attr_has_entity_name = True
     _attr_name = "Trigger Alert"
-    _attr_icon = "mdi:alert"
+    _attr_icon = "mdi:phone-alert"
 
-    def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient) -> None:
+    def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient | None) -> None:
         self._client = client
         self._attr_unique_id = f"{entry.entry_id}_trigger_alert"
         self._attr_device_info = DeviceInfo(
@@ -39,10 +40,22 @@ class MidnightAlertButton(ButtonEntity):
             manufacturer="Midnight Security",
             model="Alert System",
             entry_type=DeviceEntryType.SERVICE,
+            suggested_area="Security",
         )
+
+    @property
+    def available(self) -> bool:
+        """Return whether an API key has been configured."""
+        return self._client is not None
 
     async def async_press(self) -> None:
         """Trigger the alert when button is pressed."""
+        if self._client is None:
+            raise HomeAssistantError(
+                "Add a Midnight 911 API key first: Settings > Devices & Services "
+                "> Midnight 911 > Configure"
+            )
+
         payload = {
           "address": {
             "city": "New York",

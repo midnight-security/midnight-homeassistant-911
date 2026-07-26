@@ -27,7 +27,7 @@ PANEL_FOLDER = "frontend"
 PANEL_FILENAME = "dist/alarm-panel.js"
 
 PANEL_URL = "/api/panel_custom/alarmo"
-PANEL_TITLE = NAME
+PANEL_TITLE = "Midnight 911 – Alarm Panel"
 PANEL_ICON = "mdi:shield-home"
 PANEL_NAME = "alarm-panel"
 
