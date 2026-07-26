@@ -1,8 +1,13 @@
 # dependencies
 node_modules/
 
+# python
+__pycache__/
+*.py[cod]
+.venv/
+
 # build output
-dist/
+/dist/
 
 # env
 .env
