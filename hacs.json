@@ -1,7 +1,7 @@
 {
   "name": "Midnight 911 Integration",
   "country": "US",
-  "homeassistant": "2024.1.0b0",
+  "homeassistant": "2025.10.0",
   "zip_release": true,
   "filename": "midnight_alerts.zip"
 }

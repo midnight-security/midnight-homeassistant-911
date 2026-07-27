@@ -7,7 +7,7 @@ we copy the bundled copy out to a real custom_components/alarmo the first
 time (and whenever the bundled version changes), then auto-create its config
 entry once Home Assistant can see it.
 """
-import json
+import hashlib
 import logging
 import shutil
 from pathlib import Path
@@ -26,10 +26,15 @@ _BUNDLED_ALARMO = Path(__file__).parent / "vendor" / "alarmo" / "custom_componen
 _ALARMO_ENTRY_TITLE = "Midnight 911 – Alarm Panel"
 
 
-def _read_version(manifest_path: Path) -> str | None:
-    if not manifest_path.exists():
-        return None
-    return json.loads(manifest_path.read_text()).get("version")
+def _hash_dir(path: Path) -> str:
+    """Hash a directory's file contents so any change - not just a version
+    bump - is detected (e.g. a cosmetic const.py or manifest.json tweak)."""
+    digest = hashlib.sha256()
+    for file_path in sorted(path.rglob("*")):
+        if file_path.is_file() and "__pycache__" not in file_path.parts:
+            digest.update(file_path.relative_to(path).as_posix().encode())
+            digest.update(file_path.read_bytes())
+    return digest.hexdigest()
 
 
 def _sync_files(hass: HomeAssistant) -> bool:
@@ -39,9 +44,10 @@ def _sync_files(hass: HomeAssistant) -> bool:
     Assistant to discover them).
     """
     target = Path(hass.config.path("custom_components", ALARMO_DOMAIN))
-    bundled_version = _read_version(_BUNDLED_ALARMO / "manifest.json")
+    marker = target / _MARKER_NAME
+    bundled_hash = _hash_dir(_BUNDLED_ALARMO)
 
-    if target.exists() and not (target / _MARKER_NAME).exists():
+    if target.exists() and not marker.exists():
         _LOGGER.warning(
             "Found an existing %s integration not installed by Midnight 911; "
             "leaving it untouched",
@@ -49,13 +55,13 @@ def _sync_files(hass: HomeAssistant) -> bool:
         )
         return False
 
-    if _read_version(target / "manifest.json") == bundled_version:
+    if marker.exists() and marker.read_text() == bundled_hash:
         return False
 
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(_BUNDLED_ALARMO, target)
-    (target / _MARKER_NAME).write_text(bundled_version or "")
+    (target / _MARKER_NAME).write_text(bundled_hash)
     return True
 
 
