@@ -7,8 +7,7 @@ rules:
     status: exempt
     comment: iot_class is cloud_push; the integration does not poll.
   brands:
-    status: todo
-    comment: No icon/logo assets exist yet.
+    status: done
   common-modules:
     status: todo
     comment: Only one platform (button) exists today; revisit once more platforms are added.

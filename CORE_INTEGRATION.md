@@ -28,7 +28,7 @@ behind each requirement.
 | `test-before-setup` | `async_setup_entry` verifies connectivity before completing setup | Done |
 | `runtime-data` | Use `ConfigEntry.runtime_data`, not `hass.data[DOMAIN]` | **Todo** |
 | `config-flow-test-coverage` | Automated tests cover the config flow | Done — `tests/components/midnight_alerts/test_config_flow.py`, 100% line coverage of `config_flow.py` |
-| `brands` | Branding assets available | **Todo** |
+| `brands` | Branding assets available | Done — `custom_components/midnight_alerts/brand/` |
 | `dependency-transparency` | Third-party API code lives in a documented, pinned dependency rather than inline in the integration | **Todo** — see note below |
 | `docs-high-level-description` | Docs describe the product/service at a high level | Done — `docs/midnight_alerts.markdown` |
 | `docs-installation-instructions` | Step-by-step setup instructions | Done — `docs/midnight_alerts.markdown` |
