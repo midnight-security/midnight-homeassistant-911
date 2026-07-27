@@ -1,6 +1,8 @@
 # Midnight 911 for Home Assistant
 
-[![HA and HACS Validate](https://github.com/midnight-security/ha-midnight-noo/actions/workflows/ha_and_hacs_validate.yml/badge.svg)](https://github.com/midnight-security/ha-midnight-noo/actions/workflows/ha_and_hacs_validate.yml)
+[![License][license-shield]](LICENSE)
+[![GitHub Release][releases-shield]][releases]
+[![HA and HACS Validate](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/ha_and_hacs_validate.yml/badge.svg)](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/ha_and_hacs_validate.yml)
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
 
 The Midnight 911 integration for Home Assistant allows anyone to add professional security monitoring to their home.
@@ -50,7 +52,7 @@ Home Assistant must have an active internet connection for the integration to wo
 NO GUARANTEE
 This integration is provided as-is without warranties of any kind. Home Assistant and Midnight both involve multiple service providers and potential points of failure, including (but not limited to) your internet service provider, 3rd party hosting services such as Amazon Web Services, and the Home Assistant software platform.
 
-Please read and understand the [Midnight Terms of Service](https:www.midnight.security/legal) and [Home Assistant Terms of Service](https://www.home-assistant.io/tos/) both of which include important limitations of liability and indemnification provisions.
+Please read and understand the [Midnight Terms of Service](https://www.midnight.security/legal) and [Home Assistant Terms of Service](https://www.home-assistant.io/tos/) both of which include important limitations of liability and indemnification provisions.
 
 ---
 
@@ -113,3 +115,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+[license-shield]: https://img.shields.io/github/license/midnight-security/midnight-homeassistant-911.svg
+[releases-shield]: https://img.shields.io/github/release/midnight-security/midnight-homeassistant-911.svg
+[releases]: https://github.com/midnight-security/midnight-homeassistant-911/releases
