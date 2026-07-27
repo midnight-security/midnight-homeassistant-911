@@ -100,10 +100,13 @@ Only commits with `fix:`, `feat:`, or breaking changes trigger a new release.
 
 ## Third-party code
 
-This project vendors code from [Alarmo](https://github.com/nielsfaber/alarmo)
-(© nielsfaber, Apache-2.0) under `custom_components/midnight_alerts/vendor/alarmo/`.
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution,
-license, and provenance details.
+The alarm panel functionality in this integration is built on
+[Alarmo](https://github.com/nielsfaber/alarmo) (© nielsfaber, Apache-2.0),
+merged directly into `custom_components/midnight_alerts/` so Midnight 911 and
+the alarm panel install and appear as a single integration. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution,
+license, provenance, and a summary of the modifications made to the original
+source.
 
 ---
 

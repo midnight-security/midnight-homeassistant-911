@@ -1,0 +1,21 @@
+[project]
+name = "midnight-homeassistant-911"
+version = "0.4.0"
+description = "Midnight Security 911 Integration for Home Assistant"
+readme = "README.md"
+requires-python = "==3.13.2"
+dependencies = [
+    "homeassistant~=2025.10.0",
+    "pycares<5",
+    "home-assistant-frontend==20251001.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-homeassistant-custom-component>=0.13.243",
+]
+
+[tool.uv]
+required-version = ">=0.8.0"

@@ -4,22 +4,20 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .alarmo_bundle import async_ensure_alarmo
+from .alarmo.coordinator import async_setup_alarmo, async_unload_alarmo
 from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
 from .const import DOMAIN, CONF_API_KEY
-from .panel import async_register_panel, async_unregister_panel
 
-PLATFORMS = ["button"]
+PLATFORMS = ["button", "alarm_control_panel"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Midnight Alerts.
+    """Set up Midnight Alerts, including its merged Alarmo alarm panel.
 
     No API key is required at install time - it's added afterward via the
     integration's Configure (options) flow, so the client may be None here.
     """
-    await async_ensure_alarmo(hass)
-    await async_register_panel(hass)
+    await async_setup_alarmo(hass, entry)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = await _async_create_client(hass, entry)
@@ -57,5 +55,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        async_unregister_panel(hass)
+        await async_unload_alarmo(hass)
     return unloaded

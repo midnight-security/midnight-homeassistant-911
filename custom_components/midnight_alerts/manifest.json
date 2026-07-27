@@ -1,7 +1,8 @@
 {
   "domain": "midnight_alerts",
   "name": "Midnight 911",
-  "codeowners": ["@midnight-security/midnight-team"],
+  "after_dependencies": ["mqtt"],
+  "codeowners": ["@midnight-security/midnight-team", "@nielsfaber"],
   "config_flow": true,
   "dependencies": ["http", "panel_custom"],
   "documentation": "https://github.com/midnight-security/midnight-homeassistant-911/blob/master/docs/midnight_alerts.markdown",
