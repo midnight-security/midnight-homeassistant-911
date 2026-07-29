@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from . import MidnightAlertsConfigEntry
 from .api import MidnightAlertsApiClient, MidnightAlertsApiError
 from .const import DOMAIN
 
@@ -15,12 +16,11 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MidnightAlertsConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button."""
-    client = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([MidnightAlertButton(entry, client)])
+    async_add_entities([MidnightAlertButton(entry, entry.runtime_data.client)])
 
 
 class MidnightAlertButton(ButtonEntity):

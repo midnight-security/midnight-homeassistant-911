@@ -10,7 +10,10 @@ rules:
     status: done
   common-modules:
     status: todo
-    comment: Only one platform (button) exists today; revisit once more platforms are added.
+    comment: >-
+      Two platforms now exist (button, alarm_control_panel); pin.py,
+      sensors.py, and alarm_state.py are already shared/reusable modules,
+      but this hasn't been formally reviewed against the rule yet.
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
@@ -38,8 +41,8 @@ rules:
   entity-unique-id: done
   has-entity-name: done
   runtime-data:
-    status: todo
-    comment: __init__.py still stores the client in hass.data[DOMAIN].
+    status: done
+    comment: __init__.py now sets entry.runtime_data; both platforms read from it.
   test-before-configure: done
   test-before-setup: done
   unique-config-entry: done

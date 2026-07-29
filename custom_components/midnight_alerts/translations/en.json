@@ -26,5 +26,105 @@
         }
       }
     }
+  },
+  "config_subentries": {
+    "area": {
+      "entry_type": "Area",
+      "initiate_flow": {
+        "user": "Add area"
+      },
+      "step": {
+        "user": {
+          "title": "Add area",
+          "data": {
+            "name": "Name",
+            "enabled_modes": "Arm modes"
+          }
+        },
+        "reconfigure": {
+          "menu_options": {
+            "edit_timers": "Edit name and timers",
+            "manage_sensors": "Manage sensors"
+          }
+        },
+        "edit_timers": {
+          "title": "Edit timers",
+          "data": {
+            "name": "Name",
+            "enabled_modes": "Arm modes",
+            "exit_time": "Exit delay (seconds)",
+            "entry_time": "Entry delay (seconds)",
+            "trigger_time": "Trigger duration (seconds)"
+          },
+          "data_description": {
+            "exit_time": "How long to count down after arming before the area is fully armed",
+            "entry_time": "How long to count down after a sensor trips before the alarm actually triggers",
+            "trigger_time": "How long the alarm stays triggered before automatically resetting"
+          }
+        },
+        "manage_sensors": {
+          "title": "Manage sensors",
+          "data": {
+            "sensors": "Sensors"
+          }
+        }
+      },
+      "abort": {
+        "sensors_updated": "Sensors updated"
+      }
+    },
+    "user": {
+      "entry_type": "User",
+      "initiate_flow": {
+        "user": "Add user"
+      },
+      "step": {
+        "user": {
+          "title": "Add user",
+          "data": {
+            "name": "Name",
+            "code": "PIN code",
+            "can_arm": "Can arm",
+            "can_disarm": "Can disarm",
+            "is_override_code": "Override code",
+            "enabled": "Enabled"
+          },
+          "data_description": {
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure user",
+          "data": {
+            "name": "Name",
+            "code": "New PIN code",
+            "can_arm": "Can arm",
+            "can_disarm": "Can disarm",
+            "is_override_code": "Override code",
+            "enabled": "Enabled"
+          },
+          "data_description": {
+            "code": "Leave blank to keep the current PIN unchanged",
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "arm_modes": {
+      "options": {
+        "armed_away": "Away",
+        "armed_home": "Home",
+        "armed_night": "Night",
+        "armed_vacation": "Vacation",
+        "armed_custom_bypass": "Custom bypass"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_code": {
+      "message": "Invalid or unauthorized code"
+    }
   }
 }
