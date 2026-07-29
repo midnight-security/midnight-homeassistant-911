@@ -1,0 +1,85 @@
+{
+  "services": {
+    "arm": {
+      "name": "Armar",
+      "description": "Armar entidade Alarmo com configurações personalizadas.",
+      "fields": {
+        "entity_id": {
+          "name": "ID",
+          "description": "Entidade de alarme a ser armada."
+        },
+        "code": {
+          "name": "Código",
+          "description": "Código usado para armar."
+        },
+        "mode": {
+          "name": "Modo",
+          "description": "Modo no qual o alarme será armado."
+        },
+        "skip_delay": {
+          "name": "Ignorar Atraso",
+          "description": "Ignorar atraso de saída."
+        },
+        "force": {
+          "name": "Forçar",
+          "description": "Ignorar sensores que impedem o armar."
+        }
+      }
+    },
+    "disarm": {
+      "name": "Desarmar",
+      "description": "Desarmar entidade Alarmo.",
+      "fields": {
+        "entity_id": {
+          "name": "ID",
+          "description": "Entidade de alarme a ser desarmada."
+        },
+        "code": {
+          "name": "Código",
+          "description": "Código usado para desarmar."
+        }
+      }
+    },
+    "skip_delay": {
+      "name": "Ignorar Atraso",
+      "description": "Ignorar atraso de entrada/saída e ir direto ao próximo estado (somente em armando ou pendente).",
+      "fields": {
+        "entity_id": {
+          "name": "ID",
+          "description": "Entidade de alarme para ignorar atraso."
+        }
+      }
+    },
+    "enable_user": {
+      "name": "Habilitar Usuário",
+      "description": "Permitir que um usu�rio arme/desarme.",
+      "fields": {
+        "name": {
+          "name": "Nome",
+          "description": "Nome do usuário a habilitar."
+        }
+      }
+    },
+    "disable_user": {
+      "name": "Desabilitar Usuário",
+      "description": "Bloquear um usuário de armar/desarmar.",
+      "fields": {
+        "name": {
+          "name": "Nome",
+          "description": "Nome do usuário a desabilitar."
+        }
+      }
+    }
+  },
+  "selector": {
+    "arm_mode": {
+      "options": {
+        "away": "Armado Fora",
+        "night": "Armado Noite",
+        "home": "Armado Casa",
+        "vacation": "Armado Férias",
+        "custom": "Armado Custom"
+      }
+    }
+  }
+}

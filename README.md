@@ -63,6 +63,12 @@ Please read and understand the [Midnight Terms of Service](https://www.midnight.
 
 Work happens on `develop`. When ready, open a PR to merge `develop` → `master`.
 
+### Vendored Alarmo code
+
+`custom_components/midnight_alerts/alarmo/` contains Alarmo's integration code, vendored in via `git subtree` from our fork, [`midnight-security/alarmo`](https://github.com/midnight-security/alarmo) (a fork of [`nielsfaber/alarmo`](https://github.com/nielsfaber/alarmo)). It's ordinary tracked files, not a submodule — no extra clone or init step is needed.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#vendored-alarmo-code) for how to pull in upstream Alarmo updates.
+
 ### Releases & versioning
 
 Releases are automated with [semantic-release](https://github.com/semantic-release/semantic-release) via the [Release](.github/workflows/release.yml) workflow. When a push to `master` includes releasable commits, the workflow:

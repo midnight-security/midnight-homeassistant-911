@@ -1,0 +1,85 @@
+{
+  "services": {
+    "arm": {
+      "name": "Armar",
+      "description": "Armar uma entidade do Alarmo com configurações personalizadas.",
+      "fields": {
+        "entity_id": {
+          "name": "ID da Entidade",
+          "description": "Entidade de alarme a ser armada."
+        },
+        "code": {
+          "name": "Código",
+          "description": "Código utilizado para armar."
+        },
+        "mode": {
+          "name": "Modo",
+          "description": "Modo em que o alarme será armado."
+        },
+        "skip_delay": {
+          "name": "Ignorar Atraso",
+          "description": "Ignorar o atraso de saída."
+        },
+        "force": {
+          "name": "Forçar",
+          "description": "Ignorar automaticamente todos os sensores que impedem a operação de armar."
+        }
+      }
+    },
+    "disarm": {
+      "name": "Desarmar",
+      "description": "Desarmar uma entidade do Alarmo.",
+      "fields": {
+        "entity_id": {
+          "name": "ID da Entidade",
+          "description": "Entidade de alarme a ser desarmada."
+        },
+        "code": {
+          "name": "Código",
+          "description": "Código utilizado para desarmar."
+        }
+      }
+    },
+    "skip_delay": {
+      "name": "Ignorar Atraso",
+      "description": "Ignora o tempo de atraso restante e avança diretamente para o próximo estado. Só tem efeito quando o alarme está no estado a armar ou pendente.",
+      "fields": {
+        "entity_id": {
+          "name": "ID da Entidade",
+          "description": "Entidade de alarme para a qual o atraso deve ser ignorado."
+        }
+      }
+    },
+    "enable_user": {
+      "name": "Ativar Utilizador",
+      "description": "Permitir que um utilizador arme/desarme o Alarmo.",
+      "fields": {
+        "name": {
+          "name": "Nome",
+          "description": "Nome do utilizador a ativar."
+        }
+      }
+    },
+    "disable_user": {
+      "name": "Desativar Utilizador",
+      "description": "Bloquear um utilizador de armar/desarmar o Alarmo.",
+      "fields": {
+        "name": {
+          "name": "Nome",
+          "description": "Nome do utilizador a desativar."
+        }
+      }
+    }
+  },
+  "selector": {
+    "arm_mode": {
+      "options": {
+        "away": "Armado Fora",
+        "night": "Armado Noturno",
+        "home": "Armado Em Casa",
+        "vacation": "Armado Férias",
+        "custom": "Armado Personalizado"
+      }
+    }
+  }
+}
