@@ -3,6 +3,7 @@ title: Midnight 911
 description: Instructions on how to set up the Midnight 911 integration.
 ha_category:
   - Safety
+  - Alarm
 ha_release: 0.4.0
 ha_iot_class: Cloud Push
 ha_config_flow: true
@@ -10,6 +11,7 @@ ha_codeowners:
   - '@midnight-security/midnight-team'
 ha_domain: midnight_alerts
 ha_platforms:
+  - alarm_control_panel
   - button
 ha_integration_type: service
 ---
@@ -23,12 +25,21 @@ ha_integration_type: service
 
 The **Midnight 911** integration connects Home Assistant to
 [Midnight Security](https://www.midnight.security), a professional security
-monitoring service. It lets you add a button or automation that sends an
-alert to Midnight's US-based monitoring center. Midnight works in
-partnership with [RapidSOS](https://www.rapidsos.com) to validate alerts and
-reach the 911 center associated with your address, contacting local
-emergency services on your behalf if the alert is validated or goes without
-a response from you.
+monitoring service, in two complementary ways:
+
+- A **Trigger Alert** button (and the `button.press` action) that sends an
+  alert straight to Midnight's US-based monitoring center.
+- **Midnight Alarm**, a native `alarm_control_panel` platform — a full
+  arm/disarm system with PIN-protected users, entry/exit delay, sensor
+  groups, and a one-time import wizard for households moving off the
+  third-party **Alarmo** integration.
+
+Midnight works in partnership with [RapidSOS](https://www.rapidsos.com) to
+validate alerts and reach the 911 center associated with your address,
+contacting local emergency services on your behalf if the alert is
+validated or goes without a response from you. Wire an alarm area's
+triggered state, or the button, into an automation that calls Midnight and
+you get monitored dispatch on top of hardware you already own.
 
 <div class='note warning'>
 
@@ -40,12 +51,18 @@ up to date.
 
 ## Use cases
 
-A common setup is wiring the **Trigger Alert** button into an automation
-instead of pressing it directly — for example, triggering it when a
-glass-break or smoke sensor fires and nobody dismisses the automation's
-confirmation prompt within a couple of minutes. This gives you a monitored
-safety net on top of sensors Home Assistant already has, without needing a
-dedicated alarm panel.
+- **Escalate a sensor to a monitored alert.** Wire the **Trigger Alert**
+  button into an automation instead of pressing it directly — for example,
+  triggering it when a glass-break or smoke sensor fires and nobody
+  dismisses the automation's confirmation prompt within a couple of
+  minutes.
+- **Run a full alarm system.** Add one or more **areas**, each with its own
+  arm-away/home/night/vacation modes, exit/entry delay, and PIN-protected
+  users — the same day-to-day experience as a physical alarm panel, using
+  sensors you've already got in Home Assistant.
+- **Move off Alarmo.** If you're already running the third-party Alarmo
+  integration, **Import from Alarmo** carries your areas, users (PINs keep
+  working immediately — no re-entry), and sensor groups straight over.
 
 ## Prerequisites
 
@@ -64,22 +81,101 @@ During setup you'll be asked for:
 | --- | --- |
 | API Key | The API key from your Midnight Security account. |
 
-Once configured, the integration provides a **Trigger Alert** button entity.
-Pressing it (directly, or via an automation) sends an alert to Midnight's
-monitoring center for the address on file with your account.
+This creates the **Midnight 911** hub and the **Trigger Alert** button.
+Everything below is optional, added afterward from the hub's own **Add**
+menu (Settings → Devices & services → Midnight 911 → Add), and takes effect
+immediately with no restart required.
+
+### Adding an alarm area
+
+Add → **Area**. An area is one arm/disarm partition (most households only
+need one, named e.g. "Home").
+
+| Field | Description |
+| --- | --- |
+| Name | Shown as the area's device name and entity name. |
+| Arm modes | Which of Away / Home / Night / Vacation / Custom bypass this area supports. |
+
+The area is created with default timers (60s exit delay, 60s entry delay,
+30-minute trigger duration once set off). To change them per mode, open the
+area's device, choose **Reconfigure → Edit name and timers**.
+
+### Attaching sensors to an area
+
+From the area's **Reconfigure → Manage sensors** step, pick any
+`binary_sensor` entities that should feed this area. Two options apply to
+sensors newly picked in that same step (already-attached sensors keep
+whatever they were given — see [Known limitations](#known-limitations)):
+
+| Field | Description |
+| --- | --- |
+| Sensors | The `binary_sensor` entities to attach or detach. |
+| Hold arming open until closed | If still open when the exit delay ends, wait for it to close instead of finishing arming with it open. |
+| Debounce (seconds) | The sensor must stay open this long before it counts as a real trip, filtering a momentary blip. `0` disables debouncing. |
+
+A sensor attached to an area triggers the alarm (after that mode's entry
+delay) whenever it opens while the area is armed in a mode that mode's
+membership allows.
+
+### Adding users and PINs
+
+Add → **User**. No PIN is required to arm or disarm until at least one user
+exists — after that, every arm/disarm action needs a matching code.
+
+| Field | Description |
+| --- | --- |
+| Name | For your own reference. |
+| PIN code | Leave blank for a user who can arm/disarm without entering a code. |
+| Can arm / Can disarm | Which actions this user's code is allowed to perform. |
+| Enabled | A disabled user's code stops working without deleting them. |
+
+### Sensor groups (N-of-M confirmation)
+
+Add → **Sensor group**. Requires a configurable number of member sensors to
+trip within a time window before it counts as one confirmed event — useful
+for filtering a single pet-triggered motion sensor out of a multi-sensor
+room.
+
+| Field | Description |
+| --- | --- |
+| Member sensors | The sensors this group cross-checks. |
+| Confirmation window (seconds) | How far apart member trips can be and still count together. |
+| Sensors required to confirm | How many members must trip within the window. |
+
+Grouping a sensor here doesn't attach it to an area — each member also
+needs to be individually attached via that area's **Manage sensors** step,
+same as any other sensor.
+
+### Importing from Alarmo
+
+Add → **Import from Alarmo**, available whenever Alarmo's own storage file
+is found on this Home Assistant instance. It shows a preview (areas, users,
+sensor groups, sensors, and automations found) before you confirm.
+
+- PINs carry over in their original hashed form and keep working
+  immediately — no re-entry.
+- Automations are **never** imported (Alarmo's own automation engine is
+  exactly what this integration avoids) — only counted, so you know how
+  many to recreate as ordinary Home Assistant automations.
+- Sensors that don't exist as entities in this Home Assistant instance are
+  skipped and reported by count, not silently dropped.
+- Running the import again is a safe no-op — nothing already imported gets
+  duplicated.
 
 ## Supported functions
 
 | Entity | Type | Description |
 | --- | --- | --- |
-| Trigger Alert | Button | Sends an alert to Midnight's monitoring center for the address on your account. This is the integration's only entity. |
+| Trigger Alert | Button | Sends an alert to Midnight's monitoring center for the address on your account. |
+| *(area name)* | Alarm Control Panel | One per configured area. Supports arm away/home/night/vacation/custom bypass (per what's enabled on that area), disarm, and manual trigger, each optionally requiring a user's PIN. |
 
 ## Data updates
 
-This integration is push-only (`cloud_push`) — it never polls Midnight or
-fetches state on a schedule. Pressing **Trigger Alert** (directly or via
-automation) sends a single request to Midnight's API at that moment; there
-is no ongoing background communication otherwise.
+This integration is push-only (`cloud_push`) — nothing is polled on a
+schedule. The button sends a single request to Midnight's API at the
+moment it's pressed. Alarm area entities are fully event-driven: state
+changes are written the moment a sensor trips or a timer elapses, never on
+an interval.
 
 ## Examples
 
@@ -107,11 +203,29 @@ automation:
           entity_id: button.midnight_911_trigger_alert
 ```
 
+An alarm area is a normal `alarm_control_panel` entity, so it works with
+any automation that domain supports — for example, escalating to Midnight
+once an area has been sitting in `triggered` for a while:
+
+```yaml
+automation:
+  - alias: "Escalate an unresolved Midnight Alarm trigger"
+    trigger:
+      - trigger: state
+        entity_id: alarm_control_panel.home
+        to: "triggered"
+        for: "00:01:00"
+    action:
+      - action: button.press
+        target:
+          entity_id: button.midnight_911_trigger_alert
+```
+
 <div class='note'>
 
-There isn't yet a published blueprint for this on the community blueprint
-exchange — the YAML above is a starting point to adapt, not a ready-made
-blueprint link.
+There isn't yet a published blueprint for either of these on the community
+blueprint exchange — the YAML above is a starting point to adapt, not a
+ready-made blueprint link.
 
 </div>
 
@@ -147,10 +261,37 @@ failed alert logs an error there rather than surfacing a UI notification.
 This is almost always the same connectivity or account issue as above,
 just happening at alert time instead of setup time.
 
+### A PIN is rejected when arming or disarming
+
+Check the user's **Enabled**, **Can arm**, and **Can disarm** fields — a
+disabled user's code stops matching entirely, and a code that doesn't have
+permission for the action you're attempting is rejected rather than
+silently ignored.
+
+### A sensor doesn't trigger the alarm
+
+1. Confirm it's actually attached to the area via that area's **Manage
+   sensors** step — attaching it to a sensor group alone isn't enough.
+2. If it's in a sensor group, confirm enough other members tripped inside
+   the group's confirmation window — a single sensor in a group never
+   triggers the alarm on its own.
+3. If it has a debounce value set, confirm it stayed open at least that
+   long.
+
+### "Import from Alarmo" isn't offered, or aborts immediately
+
+- **Not offered / "No Alarmo storage file was found"** — Alarmo isn't
+  installed on this Home Assistant instance, or hasn't been set up yet.
+- **"a version this importer doesn't understand"** — open Alarmo itself
+  once first and let it finish its own migration, then retry the import.
+
 ## Removing the integration
 
-This integration follows standard integration removal. After removing it,
-no further alerts can be sent by Home Assistant until it's re-added.
+This integration follows standard integration removal. Removing an
+individual area, user, sensor group, or the whole integration cleans up
+its device(s) automatically — nothing is left behind to remove by hand.
+After removing the whole integration, no further alerts can be sent by
+Home Assistant, and no areas can be armed, until it's re-added.
 
 {% include integrations/remove_device_service.md %}
 
@@ -161,7 +302,10 @@ Security account or monitoring plan — manage or cancel that separately at
 ## Availability
 
 - **United States** only today, with Canada planned.
-- Requires an active internet connection at the time an alert is triggered.
+- Requires an active internet connection at the time an alert is triggered
+  (arming, disarming, and sensor-driven triggering within Home Assistant
+  itself work fully offline — only *forwarding* an alert to Midnight needs
+  connectivity).
 
 ## Known limitations
 
@@ -169,3 +313,15 @@ Security account or monitoring plan — manage or cancel that separately at
   a failed alert must be triggered again once connectivity is restored.
 - Only a single Midnight Security account (config entry) is supported per
   Home Assistant instance.
+- Alarmo automations are never imported, only counted — recreate the ones
+  you still need as ordinary Home Assistant automations.
+- A few per-sensor and per-user behaviors carried over from Alarmo — a
+  sensor that's always considered "open" regardless of arm state, a
+  sensor's own entry-delay override, restricting one mode only, and
+  restricting a user's code to specific areas — currently only arrive via
+  **Import from Alarmo**. There's no manual UI to set them on a
+  natively-added sensor or user yet.
+- The **Manage sensors** step's "hold arming open until closed" and
+  "debounce" options only apply to sensors newly attached in that same
+  submission — changing them for an already-attached sensor means
+  detaching and re-attaching it.

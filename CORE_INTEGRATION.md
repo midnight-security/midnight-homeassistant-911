@@ -54,12 +54,23 @@ its own published PyPI package and depending on it via `requirements` in
 Tracked in `quality_scale.yaml` for completeness, but none of these block
 getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
 `entity-translations`, `exception-translations`, and `test-coverage` are
-now done (99% overall — every module at 100% except `api.py`, tracked
-below under `dependency-transparency`). Still open, to revisit later:
-`reauthentication-flow` (Silver), `icon-translations` and
-`reconfiguration-flow` (Gold — the latter is about the top-level API-key
-entry, not the alarm feature's own subentry reconfigure flows, which
-already work), `strict-typing` (Platinum).
+done (99% overall — every module at 100% except `api.py`, tracked below
+under `dependency-transparency`). `stale-devices` and the docs-* rules
+(`docs-high-level-description`, `docs-installation-instructions`,
+`docs-supported-functions`, `docs-use-cases`, `docs-troubleshooting`,
+`docs-known-limitations`) are also done, now that `docs/midnight_alerts.markdown`
+actually documents the alarm feature (areas, users/PINs, sensor groups,
+Alarmo import) instead of only the original button.
+
+Still open, to revisit later: `reauthentication-flow` (Silver),
+`icon-translations` and `reconfiguration-flow` (Gold — the latter is about
+the top-level API-key entry, not the alarm feature's own subentry
+reconfigure flows, which already work), `strict-typing` (Platinum).
+`dynamic-devices` is flagged but not resolved — each area subentry gets
+its own device added/removed live, and real core integrations disagree on
+whether that counts as "dynamic" for this rule (see the comment in
+`quality_scale.yaml`); needs an actual read of the rule's intent rather
+than a guess.
 
 ## Not today — separate coding sessions
 

@@ -32,8 +32,19 @@ rules:
   docs-triggers:
     status: exempt
     comment: Integration does not provide triggers.
-  docs-high-level-description: done
-  docs-installation-instructions: done
+  docs-high-level-description:
+    status: done
+    comment: >-
+      docs/midnight_alerts.markdown's intro now covers both the Trigger
+      Alert button and the native Midnight Alarm alarm_control_panel
+      platform (areas, users/PINs, sensor groups, Alarmo import) - it
+      previously only described the button.
+  docs-installation-instructions:
+    status: done
+    comment: >-
+      Covers the initial API-key config flow plus step-by-step instructions
+      for adding an area, attaching sensors, adding users, sensor groups,
+      and the Alarmo import flow.
   docs-removal-instructions: done
   entity-event-setup:
     status: done
@@ -65,7 +76,9 @@ rules:
     comment: docs/midnight_alerts.markdown is a draft, not yet complete.
   entity-unavailable:
     status: todo
-    comment: Needs review - button entity availability handling not yet audited.
+    comment: >-
+      Needs review - neither the button nor the alarm_control_panel
+      entities override `available`; not yet audited for either platform.
   integration-owner: done
   log-when-unavailable:
     status: todo
@@ -113,17 +126,50 @@ rules:
   docs-examples:
     status: todo
     comment: >-
-      docs/midnight_alerts.markdown has an example automation, but the rule
-      wants a linked blueprint on the community exchange, which doesn't
-      exist yet - inline YAML isn't sufficient on its own.
-  docs-known-limitations: done
+      docs/midnight_alerts.markdown has two example automations (button and
+      alarm-triggered escalation), but the rule wants a linked blueprint on
+      the community exchange, which doesn't exist yet - inline YAML isn't
+      sufficient on its own.
+  docs-known-limitations:
+    status: done
+    comment: >-
+      Now also documents Alarmo-import specifics: automations are counted
+      but never imported, and always_on/per-sensor entry-delay
+      override/mode-restriction/user area-restriction currently only
+      arrive via import (no manual UI for them yet), plus the
+      manage-sensors new-vs-existing-sensor caveat.
   docs-supported-devices:
     status: exempt
     comment: Cloud service integration with no physical devices to support.
-  docs-supported-functions: done
-  docs-troubleshooting: done
-  docs-use-cases: done
-  dynamic-devices: exempt
+  docs-supported-functions:
+    status: done
+    comment: >-
+      Table now lists both entities - the Trigger Alert button and the
+      per-area Alarm Control Panel - instead of stating the button is
+      "the integration's only entity" (no longer true).
+  docs-troubleshooting:
+    status: done
+    comment: >-
+      Added PIN-rejection, sensor-not-triggering, and Alarmo-import-abort
+      troubleshooting sections alongside the existing config-flow ones.
+  docs-use-cases:
+    status: done
+    comment: >-
+      Previously framed the product as a button-only safety net
+      "without needing a dedicated alarm panel" - now also covers running
+      a full alarm system and migrating from Alarmo.
+  dynamic-devices:
+    status: todo
+    comment: >-
+      Not confidently exempt: each area subentry gets its own device,
+      added/removed live without a restart - structurally identical to
+      ntfy's per-topic-subentry devices, and ntfy's own quality_scale.yaml
+      marks this rule `todo` rather than exempt for that exact shape.
+      bosch_alarm marks it exempt, but its partitions are
+      fixed/panel-discovered at connect time, not a close match. Needs a
+      real read of the rule's intent (does user-initiated, in-app subentry
+      creation count as "dynamic," or is this only about devices a backend
+      introduces without user action?) rather than a guess.
   entity-category:
     status: done
     comment: >-
@@ -162,7 +208,19 @@ rules:
   repair-issues:
     status: todo
     comment: Not implemented.
-  stale-devices: exempt
+  stale-devices:
+    status: done
+    comment: >-
+      Only "area" subentries have a device (identified by
+      f"{entry_id}_{subentry_id}"; user/sensor_group subentries are pure
+      data with no entity or device of their own, so nothing to leave
+      stale there). Removing an area subentry automatically triggers HA
+      core's own dev_reg.async_clear_config_subentry /
+      ent_reg.async_clear_config_subentry (config_entries.py's
+      async_remove_subentry), which deletes the now-orphaned device - no
+      integration-side cleanup code is needed or possible. Was marked
+      exempt when the only device was the single static button hub;
+      that's no longer the architecture.
 
   # Platinum
   async-dependency:
