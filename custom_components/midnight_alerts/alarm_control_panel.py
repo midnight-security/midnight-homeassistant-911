@@ -53,6 +53,7 @@ from .const import (
     CONF_SENSOR_ENTRY_DELAY,
     CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
+    CONF_USE_ENTRY_DELAY,
     CONF_USE_EXIT_DELAY,
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
@@ -109,6 +110,7 @@ class _AreaFsmExtraData(ExtraStoredData):
             else None,
             "disarm_after_trigger": self.fsm.disarm_after_trigger,
             "held_open": self.fsm.held_open,
+            "armed_with_override": self.fsm.armed_with_override,
         }
 
     @classmethod
@@ -129,6 +131,7 @@ class _AreaFsmExtraData(ExtraStoredData):
                 trigger_until=_dt(restored.get("trigger_until")),
                 disarm_after_trigger=bool(restored.get("disarm_after_trigger")),
                 held_open=bool(restored.get("held_open")),
+                armed_with_override=bool(restored.get("armed_with_override")),
             )
         except (KeyError, ValueError):
             return None
@@ -257,7 +260,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
     @callback
     def _async_arming_deadline_reached(self, now: datetime) -> None:
         """Exit delay has elapsed - finish arming, unless something holds it open."""
-        if self._open_arm_on_close_sensors():
+        if not self._fsm.armed_with_override and self._open_arm_on_close_sensors():
             self._fsm = alarm_state_lib.hold_for_close(self._fsm)
         self.async_write_ha_state()
 
@@ -290,7 +293,11 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self._attr_changed_by = match.changed_by if match else None
         exit_time = self._mode_config(mode).get(CONF_EXIT_TIME, DEFAULT_EXIT_TIME)
         self._fsm = alarm_state_lib.start_arming(
-            self._fsm, mode=mode, now=dt_util.utcnow(), exit_time=exit_time
+            self._fsm,
+            mode=mode,
+            now=dt_util.utcnow(),
+            exit_time=exit_time,
+            override=match.is_override_code if match else False,
         )
         self.async_write_ha_state()
         self._async_schedule_arming(self._fsm.arming_until)
@@ -463,7 +470,10 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             return  # not enough corroborating sensors yet - wait for more
 
         if display == AlarmControlPanelState.ARMING:
-            if not options.get(CONF_USE_EXIT_DELAY, True):
+            if (
+                not options.get(CONF_USE_EXIT_DELAY, True)
+                and not self._fsm.armed_with_override
+            ):
                 aborted_mode = self._fsm.settled_state
                 self._fsm = alarm_state_lib.abort_arming(self._fsm)
                 self._attr_changed_by = None
@@ -503,6 +513,8 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             entry_delay = self._mode_config(mode).get(
                 CONF_ENTRY_TIME, DEFAULT_ENTRY_TIME
             )
+        if not options.get(CONF_USE_ENTRY_DELAY, True):
+            entry_delay = 0
 
         if display in mid_sequence:
             # A second sensor mid-PENDING can pull the deadline in; one that

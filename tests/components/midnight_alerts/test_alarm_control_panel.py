@@ -211,6 +211,116 @@ async def test_wrong_code_is_rejected_and_state_unchanged(hass):
     assert hass.states.get(entity_id).state == AlarmControlPanelState.DISARMED
 
 
+async def _add_user(hass, entry, *, is_override_code: bool) -> None:
+    hashed = await pin.async_hash_code(hass, "1234")
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={
+                CONF_NAME: "Alice",
+                "code": hashed,
+                "can_arm": True,
+                "can_disarm": True,
+                "is_override_code": is_override_code,
+                "area_limit": [],
+                "enabled": True,
+            },
+            subentry_type=SUBENTRY_TYPE_USER,
+            title="Alice",
+            unique_id=None,
+        ),
+    )
+    await hass.async_block_till_done()
+
+
+async def test_override_code_bypasses_arm_on_close_hold(hass, freezer):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "on")  # already open at arm time
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
+    )
+
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    await _add_user(hass, entry, is_override_code=True)
+    entity_id = _find_entity_id(hass, "area1")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id, "code": "1234"},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMING
+
+    # exit delay elapses; the sensor is STILL open, but an override-code arm
+    # must finish anyway rather than holding for it to close
+    freezer.move_to(dt_util.utcnow() + timedelta(seconds=11))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_AWAY
+
+
+async def test_non_override_code_still_holds_for_arm_on_close(hass, freezer):
+    """Regression check: a non-override user's arm is unaffected."""
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "on")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
+    )
+
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    await _add_user(hass, entry, is_override_code=False)
+    entity_id = _find_entity_id(hass, "area1")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id, "code": "1234"},
+        blocking=True,
+    )
+    freezer.move_to(dt_util.utcnow() + timedelta(seconds=11))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMING
+
+
+async def test_override_code_bypasses_use_exit_delay_false_abort(hass):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "off")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", use_exit_delay=False
+    )
+
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    await _add_user(hass, entry, is_override_code=True)
+    entity_id = _find_entity_id(hass, "area1")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id, "code": "1234"},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMING
+
+    hass.states.async_set(sensor_entity_id, "on")
+    await hass.async_block_till_done()
+    # would normally abort back to DISARMED - override keeps it ARMING
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMING
+
+
 async def test_sensor_trip_while_armed_triggers_after_entry_delay(hass, freezer):
     # The area entity's sensor subscription is built once, in
     # async_added_to_hass - the sensor and its options must exist *before*
@@ -246,6 +356,34 @@ async def test_sensor_trip_while_armed_triggers_after_entry_delay(hass, freezer)
     freezer.move_to(dt_util.utcnow() + timedelta(seconds=21))
     async_fire_time_changed(hass, dt_util.utcnow())
     await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.TRIGGERED
+
+
+async def test_use_entry_delay_false_sensor_triggers_instantly(hass):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "off")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", use_entry_delay=False
+    )
+
+    await _setup_entry(hass, subentries_data=[_area_subentry("area1", entry_time=60)])
+    entity_id = _find_entity_id(hass, "area1")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_HOME
+
+    hass.states.async_set(sensor_entity_id, "on")
+    await hass.async_block_till_done()
+    # no PENDING period at all, despite the area's 60s entry_time
     assert hass.states.get(entity_id).state == AlarmControlPanelState.TRIGGERED
 
 

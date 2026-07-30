@@ -37,6 +37,7 @@ class AreaFsm:
     trigger_until: datetime | None = None
     disarm_after_trigger: bool = False
     held_open: bool = False
+    armed_with_override: bool = False
 
 
 def display_state(
@@ -76,9 +77,19 @@ def display_state(
 
 
 def start_arming(
-    fsm: AreaFsm, *, mode: AlarmControlPanelState, now: datetime, exit_time: int
+    fsm: AreaFsm,
+    *,
+    mode: AlarmControlPanelState,
+    now: datetime,
+    exit_time: int,
+    override: bool = False,
 ) -> AreaFsm:
-    """Begin arming into `mode`, with an exit-delay countdown if configured."""
+    """Begin arming into `mode`, with an exit-delay countdown if configured.
+
+    `override` marks this as armed with an override-code PIN: sensors that
+    would otherwise hold or abort the arm (arm_on_close, use_exit_delay)
+    are bypassed for the life of this armed session.
+    """
     deadline = now + timedelta(seconds=exit_time) if exit_time else None
     return replace(
         fsm,
@@ -88,6 +99,7 @@ def start_arming(
         pending_until=None,
         trigger_until=None,
         held_open=False,
+        armed_with_override=override,
     )
 
 
@@ -98,6 +110,7 @@ def abort_arming(fsm: AreaFsm) -> AreaFsm:
         settled_state=fsm.previous_state or AlarmControlPanelState.DISARMED,
         arming_until=None,
         held_open=False,
+        armed_with_override=False,
     )
 
 

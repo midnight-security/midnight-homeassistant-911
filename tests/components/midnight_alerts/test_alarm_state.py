@@ -149,6 +149,36 @@ def test_abort_arming_clears_held_open():
     assert fsm.held_open is False
 
 
+def test_start_arming_defaults_to_no_override():
+    fsm = start_arming(
+        AreaFsm(), mode=AlarmControlPanelState.ARMED_AWAY, now=NOW, exit_time=60
+    )
+    assert fsm.armed_with_override is False
+
+
+def test_start_arming_with_override_sets_flag():
+    fsm = start_arming(
+        AreaFsm(),
+        mode=AlarmControlPanelState.ARMED_AWAY,
+        now=NOW,
+        exit_time=60,
+        override=True,
+    )
+    assert fsm.armed_with_override is True
+
+
+def test_abort_arming_clears_override():
+    fsm = start_arming(
+        AreaFsm(),
+        mode=AlarmControlPanelState.ARMED_AWAY,
+        now=NOW,
+        exit_time=60,
+        override=True,
+    )
+    fsm = abort_arming(fsm)
+    assert fsm.armed_with_override is False
+
+
 def test_disarm_resets_everything():
     fsm = start_trigger(
         AreaFsm(settled_state=AlarmControlPanelState.ARMED_AWAY),

@@ -351,10 +351,12 @@ Security account or monitoring plan — manage or cancel that separately at
   you still need as ordinary Home Assistant automations.
 - A few per-sensor and per-user behaviors carried over from Alarmo — a
   sensor that's always considered "open" regardless of arm state, a
-  sensor's own entry-delay override, restricting one mode only, and
-  restricting a user's code to specific areas — currently only arrive via
-  **Import from Alarmo**. There's no manual UI to set them on a
-  natively-added sensor or user yet.
+  sensor's own entry-delay override, restricting one mode only, a user's
+  code restricted to specific areas, a user's "override code" bypassing
+  sensor-arming holds, and a sensor with its entry delay turned off
+  entirely (triggers instantly) — currently only arrive via **Import from
+  Alarmo**. There's no manual UI to set them on a natively-added sensor or
+  user yet, though the behavior itself is fully functional once set.
 - The **Manage sensors** step's "hold arming open until closed" and
   "debounce" options only apply to sensors newly attached in that same
   submission — changing them for an already-attached sensor means
