@@ -11,6 +11,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
+    async_capture_events,
     async_fire_time_changed,
     mock_restore_cache_with_extra_data,
 )
@@ -29,6 +30,7 @@ from custom_components.midnight_alerts.const import (
     CONF_NAME,
     CONF_TIMEOUT,
     DOMAIN,
+    EVENT_ARM_FAILED,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
@@ -684,6 +686,38 @@ async def test_use_exit_delay_false_sensor_aborts_arming_immediately(hass):
     hass.states.async_set(sensor_entity_id, "on")
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_aborted_arming_fires_arm_failed_event(hass):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "off")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", use_exit_delay=False
+    )
+
+    await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    entity_id = _find_entity_id(hass, "area1")
+    events = async_capture_events(hass, EVENT_ARM_FAILED)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+    hass.states.async_set(sensor_entity_id, "on")
+    await hass.async_block_till_done()
+
+    assert len(events) == 1
+    assert events[0].data == {
+        "entity_id": entity_id,
+        "sensor": sensor_entity_id,
+        "mode": "armed_away",
+    }
 
 
 async def test_non_always_on_sensor_ignored_while_disarmed(hass):

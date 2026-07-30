@@ -127,17 +127,24 @@ rules:
   docs-examples:
     status: done
     comment: >-
-      Two real, schema-validated blueprints now ship at
+      Five real, schema-validated blueprints now ship at
       blueprints/automation/midnight_alerts/ (notify-on-trigger,
-      re-arm-after-timeout) - the direct, working replacement for Alarmo's
-      own built-in notification/re-arm-timer automation features. Verified
-      end-to-end: loaded and validated against AUTOMATION_BLUEPRINT_SCHEMA,
-      and instantiated with real inputs to confirm the resulting automation
-      config (including the templated alarm_arm_{{ rearm_mode }} action
-      name) is correct. docs/midnight_alerts.markdown links both and
-      explains the Import Blueprint flow. Not yet published to the
-      community blueprint exchange forum - importing directly by the
-      GitHub link works today without that.
+      notify-on-state-change, re-arm-after-timeout,
+      auto-arm-away-when-everyone-leaves, retry-arm-on-failed-to-arm) -
+      the direct, working replacement for Alarmo's own built-in
+      notification, device-switching, and automatic-arming automation
+      features (checked against Alarmo's real README, not assumed).
+      Verified end-to-end: each loaded and validated against
+      AUTOMATION_BLUEPRINT_SCHEMA, and instantiated with real inputs to
+      confirm the resulting automation config - including the templated
+      alarm_arm_{{ rearm_mode }}/{{ retry_mode }} action names, the
+      expand()/selectattr() presence-check template, the mobile_app
+      device-notify-action shape, and the two-trigger
+      condition:-trigger/id: branching - is correct.
+      docs/midnight_alerts.markdown links all five and explains the
+      Import Blueprint flow. Not yet published to the community blueprint
+      exchange forum - importing directly by the GitHub link works today
+      without that.
   docs-known-limitations:
     status: done
     comment: >-

@@ -231,21 +231,33 @@ below.
 
 ### Ready-made blueprints
 
-This repo bundles two blueprints under
+This repo bundles five blueprints under
 [`blueprints/automation/midnight_alerts/`](https://github.com/midnight-security/midnight-homeassistant-911/tree/master/blueprints/automation/midnight_alerts) —
-the direct replacement for Alarmo's own built-in "notification" and
-"re-arm timer" automation features, as real, editable Home Assistant
-automations instead of rules stored inside the integration:
+the direct replacement for Alarmo's own built-in "notification," "device
+switching," and "automatic arming" automation features, as real, editable
+Home Assistant automations instead of rules stored inside the
+integration:
 
 | Blueprint | What it does |
 | --- | --- |
-| [Notify on Trigger](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/notify_on_trigger.yaml) | Runs any action you choose (a notification, a script, anything) the moment an area enters `triggered`. |
+| [Notify on Trigger](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/notify_on_trigger.yaml) | Runs any action you choose (a notification, a script, turning on a siren or lights - anything) the moment an area enters `triggered`. |
+| [Notify on State Change](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/notify_on_state_change.yaml) | The broader version of the above - pick any set of states (armed, disarmed, triggered, etc.) to run an action on, with `trigger.to_state.attributes.changed_by` available for templating (the equivalent of Alarmo's `{{changed_by}}` wildcard). |
 | [Re-arm After Timeout](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/rearm_after_timeout.yaml) | Automatically re-arms an area into a mode you choose if it's left disarmed longer than a configurable timeout. |
+| [Auto-Arm Away When Everyone Leaves](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/auto_arm_away_when_everyone_leaves.yaml) | Arms an area away once every tracked `person` entity has left home. Alarmo's own docs say this specific recipe needs a hand-written automation too - this is that automation, ready to use. |
+| [Retry Arm on Failed Arm](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/retry_arm_on_failed_to_arm.yaml) | Sends an actionable notification with a "Retry Arm" button whenever a sensor without exit delay blocks arming - the equivalent of Alarmo's actionable "failed to arm" push notification. |
 
 To use one: **Settings → Automations & Scenes → Blueprints → Import
 Blueprint**, paste that blueprint's GitHub link above, then create an
-automation from it like any other blueprint - pick the area (and, for the
-notify one, whatever action you want to run) from the dropdowns.
+automation from it like any other blueprint - pick the area (and whatever
+else the blueprint asks for) from the dropdowns.
+
+The last one listens for `midnight_alerts_arm_failed`, an event this
+integration fires whenever a sensor configured without exit delay opens
+mid-arming and aborts it - the equivalent of Alarmo's own
+`alarmo_failed_to_arm` event. Its data includes `entity_id` (the area),
+`sensor` (what caused the abort), and `mode` (what was being armed into),
+if you'd rather build your own automation around it than use the
+blueprint.
 
 These aren't yet published to the official community blueprint exchange
 (forum.home-assistant.io) - importing directly by the GitHub link above

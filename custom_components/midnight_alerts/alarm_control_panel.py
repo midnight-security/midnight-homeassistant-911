@@ -60,6 +60,7 @@ from .const import (
     DEFAULT_SENSOR_GROUP_TIMEOUT,
     DEFAULT_TRIGGER_TIME,
     DOMAIN,
+    EVENT_ARM_FAILED,
     MODE_TO_FEATURE,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
@@ -463,10 +464,19 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
         if display == AlarmControlPanelState.ARMING:
             if not options.get(CONF_USE_EXIT_DELAY, True):
+                aborted_mode = self._fsm.settled_state
                 self._fsm = alarm_state_lib.abort_arming(self._fsm)
                 self._attr_changed_by = None
                 self.async_write_ha_state()
                 self._async_schedule(self._fsm.arming_until)
+                self.hass.bus.async_fire(
+                    EVENT_ARM_FAILED,
+                    {
+                        "entity_id": self.entity_id,
+                        "sensor": entity_id,
+                        "mode": str(aborted_mode),
+                    },
+                )
             return
 
         armed = display in alarm_state_lib.ARM_MODES

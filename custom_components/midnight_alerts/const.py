@@ -50,6 +50,11 @@ CONF_SENSOR_ENTRY_DELAY: Final = "entry_delay"
 CONF_ARM_ON_CLOSE: Final = "arm_on_close"
 CONF_DELAY_ON: Final = "delay_on"
 
+# Fired when a sensor without use_exit_delay opens mid-ARMING and aborts it -
+# the equivalent of Alarmo's own alarmo_failed_to_arm event, for automations
+# (e.g. a "Retry Arm" actionable notification) to react to.
+EVENT_ARM_FAILED: Final = f"{DOMAIN}_arm_failed"
+
 DEFAULT_EXIT_TIME: Final = 60
 DEFAULT_ENTRY_TIME: Final = 60
 DEFAULT_TRIGGER_TIME: Final = 1800
