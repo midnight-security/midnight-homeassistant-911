@@ -1,18 +1,15 @@
 {
   "config": {
     "step": {
-      "user": {
-        "data": {
-          "api_key": "API Key"
-        }
+      "auth": {
+        "title": "Log in to Midnight Security",
+        "description": "Log in to app.midnight.security in the window that just opened. Home Assistant will pick up automatically once you're done."
       }
     },
-    "error": {
-      "invalid_auth": "Invalid API key",
-      "cannot_connect": "Failed to connect to Midnight Alerts"
-    },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "no_url_available": "Could not determine a URL for this Home Assistant instance. Set your Home Assistant URL under Settings > System > Network, then try again.",
+      "login_failed": "Login failed or was cancelled on app.midnight.security. Please try again."
     }
   }
 }
