@@ -9,11 +9,13 @@ rules:
   brands:
     status: done
   common-modules:
-    status: todo
+    status: done
     comment: >-
-      Two platforms now exist (button, alarm_control_panel); pin.py,
-      sensors.py, and alarm_state.py are already shared/reusable modules,
-      but this hasn't been formally reviewed against the rule yet.
+      Two platforms now exist (button, alarm_control_panel). Shared logic is
+      factored into standalone modules rather than duplicated or left inline
+      on the entity: pin.py (PIN hashing/verification), sensors.py
+      (entity-registry-options helpers), alarm_state.py (state-machine math),
+      sensor_groups.py (N-of-M tally), alarmo_import.py (migration parser).
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
@@ -34,10 +36,11 @@ rules:
   docs-installation-instructions: done
   docs-removal-instructions: done
   entity-event-setup:
-    status: todo
+    status: done
     comment: >-
-      Needs review - the button entity has no push-based state, so this
-      may end up exempt, but not yet confirmed.
+      Neither platform polls. The button has no state to track. The alarm
+      area entity is fully event/callback-driven: async_track_state_change_event
+      for sensors, async_track_point_in_time for scheduled transitions.
   entity-unique-id: done
   has-entity-name: done
   runtime-data:
@@ -49,8 +52,10 @@ rules:
 
   # Silver
   action-exceptions:
-    status: todo
-    comment: No custom service actions exist yet to raise exceptions from.
+    status: done
+    comment: >-
+      pin.async_validate_code raises ServiceValidationError (translation_key
+      "invalid_code") for a wrong or unauthorized PIN on any arm/disarm call.
   config-entry-unloading: done
   docs-configuration-parameters:
     status: todo
@@ -66,26 +71,35 @@ rules:
     status: todo
     comment: Needs review - not yet audited.
   parallel-updates:
-    status: todo
-    comment: Not yet specified on the button entity/platform.
+    status: done
+    comment: PARALLEL_UPDATES = 0 set on both button.py and alarm_control_panel.py.
   reauthentication-flow:
     status: todo
     comment: config_flow.py only implements async_step_user today.
   test-coverage:
     status: todo
     comment: >-
-      Config flow has 100% coverage, but api.py, __init__.py, and button.py
-      are still untested. Needs >95% across all modules.
+      Config flow, and every alarm_control_panel/pin/sensors/alarm_state/
+      sensor_groups/alarmo_import module, have thorough test coverage.
+      api.py, __init__.py, and button.py's own logic are still untested -
+      needs >95% across all modules.
 
   # Gold
   devices:
     status: done
     comment: >-
-      button.py already sets device_info with entry_type=DeviceEntryType.SERVICE,
-      which is the documented pattern for a service with no physical hardware.
+      button.py's device and each alarm area's device both set
+      entry_type=DeviceEntryType.SERVICE. Each area is its own child device
+      (identifiers keyed by entry_id + subentry_id) linked back to the main
+      "Midnight 911" hub device via via_device, matching ntfy's pattern for
+      multiple subentry-scoped devices under one config entry.
   diagnostics:
-    status: todo
-    comment: Not implemented.
+    status: done
+    comment: >-
+      diagnostics.py redacts api_key and every subentry's PIN hash. Each
+      ConfigSubentry is converted via .as_dict() before redaction, since
+      async_redact_data only recurses into Mapping/list and would silently
+      skip a raw ConfigSubentry (a frozen dataclass) otherwise.
   discovery: exempt
   discovery-update-info: exempt
   docs-data-update: done
@@ -115,17 +129,29 @@ rules:
       to an alert-trigger button.
   entity-disabled-by-default: exempt
   entity-translations:
-    status: todo
-    comment: translations/en.json exists but has not been audited for completeness.
+    status: done
+    comment: >-
+      button.py now uses _attr_translation_key ("trigger_alert") instead of a
+      hardcoded _attr_name, with entity.button.trigger_alert.name in
+      translations/en.json. The alarm area entity correctly needs none -
+      _attr_name = None makes it the device's unnamed primary entity, the
+      same convention used throughout core (e.g. ntfy's own entities).
   exception-translations:
-    status: todo
-    comment: Not implemented.
+    status: done
+    comment: >-
+      pin.py's ServiceValidationError uses translation_domain=DOMAIN,
+      translation_key="invalid_code", backed by exceptions.invalid_code in
+      translations/en.json.
   icon-translations:
     status: todo
     comment: button.py uses a hardcoded _attr_icon instead of icons.json.
   reconfiguration-flow:
     status: todo
-    comment: config_flow.py only implements async_step_user today.
+    comment: >-
+      The main config flow (API key) only implements async_step_user - no
+      reconfigure step to change the key without removing and re-adding the
+      entry. Unrelated to the alarm feature's own subentries, which do have
+      working reconfigure flows (area/user/sensor_group).
   repair-issues:
     status: todo
     comment: Not implemented.

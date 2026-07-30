@@ -13,6 +13,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -27,7 +29,7 @@ class MidnightAlertButton(ButtonEntity):
     """Representation of a Midnight Alert button."""
 
     _attr_has_entity_name = True
-    _attr_name = "Trigger Alert"
+    _attr_translation_key = "trigger_alert"
     _attr_icon = "mdi:alert"
 
     def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient) -> None:

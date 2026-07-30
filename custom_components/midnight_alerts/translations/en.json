@@ -1,4 +1,11 @@
 {
+  "entity": {
+    "button": {
+      "trigger_alert": {
+        "name": "Trigger Alert"
+      }
+    }
+  },
   "config": {
     "step": {
       "user": {

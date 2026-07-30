@@ -36,8 +36,8 @@ behind each requirement.
 | `action-setup` | Service actions registered in `async_setup` | Exempt — no custom service actions |
 | `appropriate-polling` | Sensible polling interval | Exempt — `cloud_push`, not polling |
 | `docs-actions` / `docs-triggers` / `docs-conditions` | Docs for services/triggers/conditions | Exempt — none provided |
-| `common-modules` | Shared patterns live in common modules | Needs review — only one platform today |
-| `entity-event-setup` | Entity events subscribed in correct lifecycle method | Needs review — button entity has no push-based state |
+| `common-modules` | Shared patterns live in common modules | Done — `pin.py`, `sensors.py`, `alarm_state.py`, `sensor_groups.py`, `alarmo_import.py` |
+| `entity-event-setup` | Entity events subscribed in correct lifecycle method | Done — both platforms are push/callback-driven, no polling |
 
 ### Note on `dependency-transparency`
 
@@ -52,9 +52,12 @@ its own published PyPI package and depending on it via `requirements` in
 ## Silver / Gold / Platinum — roadmap, not required for initial acceptance
 
 Tracked in `quality_scale.yaml` for completeness, but none of these block
-getting into core. Notable ones to revisit later: `reauthentication-flow`
-and `test-coverage` (Silver), `diagnostics` and `reconfiguration-flow`
-(Gold), `strict-typing` (Platinum).
+getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
+`entity-translations`, and `exception-translations` are now done. Still
+open, to revisit later: `reauthentication-flow` and `test-coverage`
+(Silver), `icon-translations` and `reconfiguration-flow` (Gold — the latter
+is about the top-level API-key entry, not the alarm feature's own subentry
+reconfigure flows, which already work), `strict-typing` (Platinum).
 
 ## Not today — separate coding sessions
 
