@@ -56,8 +56,21 @@ class MidnightAlertsApiClient:
                 if resp.status in (401, 403):
                     raise MidnightAlertsAuthError(f"Invalid API key ({resp.status})")
                 if resp.status != 200:
+                    # The body is often an upstream gateway's raw HTML error
+                    # page (e.g. an nginx 502), not anything meant for a
+                    # user - keep that out of the exception message HA shows
+                    # verbatim in the UI, but keep it in the debug log for
+                    # actually troubleshooting.
+                    body = await resp.text()
+                    _LOGGER.debug(
+                        "Midnight Alerts %s %s returned %s: %s",
+                        method,
+                        path,
+                        resp.status,
+                        body,
+                    )
                     raise MidnightAlertsApiError(
-                        f"{method} {path} failed: {resp.status} {await resp.text()}"
+                        f"{method} {path} failed with HTTP {resp.status}"
                     )
         except ClientError as err:
             wrapped = MidnightAlertsApiError(f"Error connecting to API: {err}")
