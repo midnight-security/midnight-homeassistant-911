@@ -223,11 +223,33 @@ automation:
 
 <div class='note'>
 
-There isn't yet a published blueprint for either of these on the community
-blueprint exchange — the YAML above is a starting point to adapt, not a
-ready-made blueprint link.
+The YAML above is a starting point to hand-adapt. For a ready-made version
+of each with no copy-pasting required, see the two bundled blueprints
+below.
 
 </div>
+
+### Ready-made blueprints
+
+This repo bundles two blueprints under
+[`blueprints/automation/midnight_alerts/`](https://github.com/midnight-security/midnight-homeassistant-911/tree/master/blueprints/automation/midnight_alerts) —
+the direct replacement for Alarmo's own built-in "notification" and
+"re-arm timer" automation features, as real, editable Home Assistant
+automations instead of rules stored inside the integration:
+
+| Blueprint | What it does |
+| --- | --- |
+| [Notify on Trigger](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/notify_on_trigger.yaml) | Runs any action you choose (a notification, a script, anything) the moment an area enters `triggered`. |
+| [Re-arm After Timeout](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/rearm_after_timeout.yaml) | Automatically re-arms an area into a mode you choose if it's left disarmed longer than a configurable timeout. |
+
+To use one: **Settings → Automations & Scenes → Blueprints → Import
+Blueprint**, paste that blueprint's GitHub link above, then create an
+automation from it like any other blueprint - pick the area (and, for the
+notify one, whatever action you want to run) from the dropdowns.
+
+These aren't yet published to the official community blueprint exchange
+(forum.home-assistant.io) - importing directly by the GitHub link above
+works today without waiting on that.
 
 ## Troubleshooting
 

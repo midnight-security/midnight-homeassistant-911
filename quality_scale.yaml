@@ -92,17 +92,18 @@ rules:
   test-coverage:
     status: done
     comment: >-
-      99% overall (pytest --cov), 787 statements / 10 missed. Every module
-      is at 100% - __init__, alarm_control_panel, alarm_state,
-      alarmo_import, button, config_flow, const, diagnostics,
-      error_reporting, pin, sensor_groups, sensors - except api.py (71%,
-      10 lines), which is the pre-existing, separately-tracked
-      dependency-transparency gap (see that entry) rather than an
-      untested code path in this integration's own logic. Coverage work
-      also caught and fixed a real bug along the way: a second, faster
-      sensor tripping mid-PENDING was silently ignored instead of
-      shortening the countdown, because the gate only recognized TRIGGERED
-      display state, not PENDING.
+      100% overall (pytest --cov), 789/789 statements across all 13
+      modules. api.py was previously the sole gap (71%, 10 lines) because
+      every other test patched MidnightAlertsApiClient.async_validate
+      wholesale instead of exercising _async_request itself; test_api.py
+      now drives it through aioclient_mock (BASE_URL construction, the
+      401/403 auth-error path, the non-200 path added when the API URL
+      and error-message handling were reworked, ClientError wrapping, and
+      error_reporting call args in both the enabled and default-disabled
+      cases). Earlier coverage work also caught and fixed a real bug
+      along the way: a second, faster sensor tripping mid-PENDING was
+      silently ignored instead of shortening the countdown, because the
+      gate only recognized TRIGGERED display state, not PENDING.
 
   # Gold
   devices:
@@ -124,12 +125,19 @@ rules:
   discovery-update-info: exempt
   docs-data-update: done
   docs-examples:
-    status: todo
+    status: done
     comment: >-
-      docs/midnight_alerts.markdown has two example automations (button and
-      alarm-triggered escalation), but the rule wants a linked blueprint on
-      the community exchange, which doesn't exist yet - inline YAML isn't
-      sufficient on its own.
+      Two real, schema-validated blueprints now ship at
+      blueprints/automation/midnight_alerts/ (notify-on-trigger,
+      re-arm-after-timeout) - the direct, working replacement for Alarmo's
+      own built-in notification/re-arm-timer automation features. Verified
+      end-to-end: loaded and validated against AUTOMATION_BLUEPRINT_SCHEMA,
+      and instantiated with real inputs to confirm the resulting automation
+      config (including the templated alarm_arm_{{ rearm_mode }} action
+      name) is correct. docs/midnight_alerts.markdown links both and
+      explains the Import Blueprint flow. Not yet published to the
+      community blueprint exchange forum - importing directly by the
+      GitHub link works today without that.
   docs-known-limitations:
     status: done
     comment: >-

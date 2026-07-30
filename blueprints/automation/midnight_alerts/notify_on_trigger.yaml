@@ -1,0 +1,37 @@
+blueprint:
+  name: Midnight Alarm - Notify on Trigger
+  description: >-
+    Runs a notification (or any other action) whenever a Midnight Alarm
+    area enters the `triggered` state. This is the direct replacement for
+    Alarmo's own built-in "send a notification" automation feature - a
+    real, editable Home Assistant automation instead of a rule stored
+    inside the integration.
+  domain: automation
+  source_url: https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/notify_on_trigger.yaml
+  author: Midnight Security
+  input:
+    alarm_entity:
+      name: Midnight Alarm area
+      description: The alarm_control_panel entity for the area to watch.
+      selector:
+        entity:
+          filter:
+            - domain: alarm_control_panel
+    notify_action:
+      name: Notification action
+      description: >-
+        What to run when the area triggers - a notify action, a script, or
+        any other action sequence. Templates can use
+        `trigger.to_state.attributes.friendly_name` for the area's name and
+        `trigger.to_state.entity_id` for its entity ID.
+      selector:
+        action: {}
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input alarm_entity
+    to: triggered
+
+actions: !input notify_action
