@@ -15,7 +15,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import pin, sensors
+from . import alarmo_import, pin, sensors
 from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
 from .const import (
     ARM_MODES,
@@ -43,6 +43,7 @@ from .const import (
     DEFAULT_SENSOR_GROUP_TIMEOUT,
     DEFAULT_TRIGGER_TIME,
     DOMAIN,
+    SUBENTRY_TYPE_ALARMO_IMPORT,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
@@ -101,6 +102,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             SUBENTRY_TYPE_AREA: AreaSubentryFlowHandler,
             SUBENTRY_TYPE_USER: UserSubentryFlowHandler,
             SUBENTRY_TYPE_SENSOR_GROUP: SensorGroupSubentryFlowHandler,
+            SUBENTRY_TYPE_ALARMO_IMPORT: AlarmoImportSubentryFlowHandler,
         }
 
 
@@ -438,4 +440,56 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
             data_schema=self.add_suggested_values_to_schema(
                 SENSOR_GROUP_SCHEMA, subentry.data
             ),
+        )
+
+
+class AlarmoImportSubentryFlowHandler(ConfigSubentryFlow):
+    """One-shot "Import from Alarmo" migration.
+
+    Doesn't create a subentry of its own type - it's a UI entry point (via
+    the entry's "Add" menu, like any other subentry type) for a bulk action
+    that creates area/user/sensor_group subentries directly, then always
+    ends in async_abort with a summary.
+    """
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Show a preview of what would be imported, then apply on confirm."""
+        raw = await alarmo_import.async_read_alarmo_storage(self.hass)
+        if raw is None:
+            return self.async_abort(reason="alarmo_not_found")
+
+        plan = alarmo_import.parse_import(raw)
+        if plan is None:
+            return self.async_abort(reason="alarmo_version_mismatch")
+
+        if user_input is not None:
+            summary = await alarmo_import.async_apply_import(
+                self.hass, self._get_entry(), plan
+            )
+            if summary.already_imported:
+                return self.async_abort(reason="already_imported")
+            return self.async_abort(
+                reason="import_complete",
+                description_placeholders={
+                    "areas": str(summary.areas_imported),
+                    "users": str(summary.users_imported),
+                    "sensor_groups": str(summary.sensor_groups_imported),
+                    "sensors": str(summary.sensors_imported),
+                    "sensors_skipped": str(len(summary.sensors_skipped)),
+                    "automations_skipped": str(summary.automations_skipped),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "areas": str(len(plan.areas)),
+                "users": str(len(plan.users)),
+                "sensor_groups": str(len(plan.sensor_groups)),
+                "sensors": str(len(plan.sensor_imports)),
+                "automations_skipped": str(plan.automation_count),
+            },
         )

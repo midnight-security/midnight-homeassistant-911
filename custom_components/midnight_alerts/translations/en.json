@@ -110,6 +110,24 @@
         }
       }
     },
+    "alarmo_import": {
+      "entry_type": "Import from Alarmo",
+      "initiate_flow": {
+        "user": "Import from Alarmo"
+      },
+      "step": {
+        "user": {
+          "title": "Import from Alarmo",
+          "description": "Found {areas} area(s), {users} user(s), {sensor_groups} sensor group(s), and {sensors} sensor(s) to import. PINs carry over and keep working immediately. {automations_skipped} Alarmo automation(s) will NOT be imported - recreate the ones you still need as ordinary Home Assistant automations."
+        }
+      },
+      "abort": {
+        "alarmo_not_found": "No Alarmo storage file was found - Alarmo doesn't appear to be installed on this Home Assistant instance",
+        "alarmo_version_mismatch": "Alarmo's storage is a version this importer doesn't understand - open Alarmo once to let it finish migrating, then try again",
+        "already_imported": "This Alarmo configuration has already been imported - nothing to do",
+        "import_complete": "Imported {areas} area(s), {users} user(s), {sensor_groups} sensor group(s), and {sensors} sensor(s) ({sensors_skipped} sensor(s) skipped - not found in this Home Assistant instance). {automations_skipped} automation(s) were not imported."
+      }
+    },
     "user": {
       "entry_type": "User",
       "initiate_flow": {

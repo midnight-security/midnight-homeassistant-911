@@ -1,4 +1,5 @@
 """Tests for the area/user config subentry flows."""
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigSubentry
@@ -18,9 +19,14 @@ from custom_components.midnight_alerts.const import (
     CONF_NAME,
     CONF_TIMEOUT,
     DOMAIN,
+    SUBENTRY_TYPE_ALARMO_IMPORT,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+)
+
+FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
 )
 
 VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
@@ -364,3 +370,84 @@ async def test_manage_sensors_applies_arm_on_close_and_delay_on_to_new_sensors(h
     options = sensors.async_get_sensor_options(hass, sensor_entity_id)
     assert options[CONF_ARM_ON_CLOSE] is True
     assert options[CONF_DELAY_ON] == 5
+
+
+def _write_alarmo_storage(hass) -> None:
+    storage_dir = Path(hass.config.path(".storage"))
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    (storage_dir / "alarmo.storage").write_text(FIXTURE_PATH.read_text())
+
+
+async def test_alarmo_import_flow_shows_preview_then_applies(hass, tmp_path, monkeypatch):
+    # See test_alarmo_import.py's test_read_alarmo_storage_missing_file_returns_none
+    # for why config_dir must be redirected before writing a real storage file.
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    entry = await _entry(hass)
+    _write_alarmo_storage(hass)
+    registry = er.async_get(hass)
+    for name in ("front_door", "motion1", "motion2"):
+        registry.async_get_or_create(
+            "binary_sensor", "test", name, suggested_object_id=name
+        )
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ALARMO_IMPORT),
+        context={"source": "user"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["description_placeholders"]["areas"] == "1"
+    assert result["description_placeholders"]["sensors"] == "3"
+    assert result["description_placeholders"]["automations_skipped"] == "2"
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "import_complete"
+    assert result["description_placeholders"]["areas"] == "1"
+
+    area_subentries = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    assert len(area_subentries) == 1
+
+
+async def test_alarmo_import_flow_no_file_aborts(hass, tmp_path, monkeypatch):
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    entry = await _entry(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ALARMO_IMPORT),
+        context={"source": "user"},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "alarmo_not_found"
+
+
+async def test_alarmo_import_flow_twice_reports_already_imported(hass, tmp_path, monkeypatch):
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    entry = await _entry(hass)
+    _write_alarmo_storage(hass)
+    registry = er.async_get(hass)
+    for name in ("front_door", "motion1", "motion2"):
+        registry.async_get_or_create(
+            "binary_sensor", "test", name, suggested_object_id=name
+        )
+    await hass.async_block_till_done()
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        for _ in range(2):
+            result = await hass.config_entries.subentries.async_init(
+                (entry.entry_id, SUBENTRY_TYPE_ALARMO_IMPORT),
+                context={"source": "user"},
+            )
+            result = await hass.config_entries.subentries.async_configure(
+                result["flow_id"], {}
+            )
+            await hass.async_block_till_done()
+
+    assert result["reason"] == "already_imported"

@@ -16,6 +16,9 @@ CONF_ENABLE_CRASH_REPORTING = "enable_crash_reporting"
 SUBENTRY_TYPE_AREA: Final = "area"
 SUBENTRY_TYPE_USER: Final = "user"
 SUBENTRY_TYPE_SENSOR_GROUP: Final = "sensor_group"
+SUBENTRY_TYPE_ALARMO_IMPORT: Final = "alarmo_import"
+
+ALARMO_STORAGE_VERSION: Final = 6
 
 # "area" subentry data keys
 CONF_NAME: Final = "name"
