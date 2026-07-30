@@ -14,7 +14,6 @@ any action (arm or disarm) - this module is the entirety of that logic.
 from __future__ import annotations
 
 import base64
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, NamedTuple
 
@@ -35,8 +34,6 @@ from .const import (
     DOMAIN,
     SUBENTRY_TYPE_USER,
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 _BCRYPT_ROUNDS = 10
 _MAX_WORKERS = 4

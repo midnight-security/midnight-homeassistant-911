@@ -179,7 +179,9 @@ def _modes_data(enabled_modes: list[str], timers: dict[str, int]) -> dict[str, A
 class AreaSubentryFlowHandler(ConfigSubentryFlow):
     """Create/reconfigure a Midnight Alarm area."""
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Create a new area with default timers, applied to the selected modes."""
         if user_input is not None:
             timers = {
@@ -347,7 +349,9 @@ class UserSubentryFlowHandler(ConfigSubentryFlow):
     to specific areas, but there's no UI to set it yet.
     """
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Create a new user."""
         if user_input is not None:
             hashed = await pin.async_hash_code(self.hass, user_input[CONF_CODE])

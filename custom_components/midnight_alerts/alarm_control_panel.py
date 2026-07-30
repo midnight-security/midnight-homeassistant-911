@@ -38,7 +38,6 @@ from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from . import pin, sensors
-from .alarm_state import ARM_MODES, AreaFsm, display_state
 from . import alarm_state as alarm_state_lib
 from .sensor_groups import GroupTally, is_confirmed
 from .const import (
@@ -89,7 +88,7 @@ async def async_setup_entry(
 class _AreaFsmExtraData(ExtraStoredData):
     """Restore-state wrapper so a mid-countdown FSM survives a restart."""
 
-    def __init__(self, fsm: AreaFsm) -> None:
+    def __init__(self, fsm: alarm_state_lib.AreaFsm) -> None:
         self.fsm = fsm
 
     def as_dict(self) -> dict[str, Any]:
@@ -117,7 +116,7 @@ class _AreaFsmExtraData(ExtraStoredData):
             return dt_util.parse_datetime(value) if value else None
 
         try:
-            fsm = AreaFsm(
+            fsm = alarm_state_lib.AreaFsm(
                 settled_state=AlarmControlPanelState(restored["settled_state"]),
                 previous_state=(
                     AlarmControlPanelState(restored["previous_state"])
@@ -147,7 +146,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         """Initialize the area."""
         self._entry = entry
         self._subentry = subentry
-        self._fsm = AreaFsm()
+        self._fsm = alarm_state_lib.AreaFsm()
         self._unsub_callbacks: list[CALLBACK_TYPE] = []
         self._delay_on_unsub: dict[str, CALLBACK_TYPE] = {}
         self._group_tallies: dict[str, GroupTally] = {}
@@ -171,7 +170,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
     @property
     def alarm_state(self) -> AlarmControlPanelState:
         """Derive ARMING/PENDING/TRIGGERED from the FSM at read time."""
-        state, fsm = display_state(self._fsm, dt_util.utcnow())
+        state, fsm = alarm_state_lib.display_state(self._fsm, dt_util.utcnow())
         self._fsm = fsm
         return state
 
@@ -333,7 +332,8 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_trigger(self, code: str | None = None) -> None:
         """Manual trigger (e.g. a panic button) - immediate, no entry delay."""
-        mode = self._fsm.settled_state if self._fsm.settled_state in ARM_MODES else None
+        settled = self._fsm.settled_state
+        mode = settled if settled in alarm_state_lib.ARM_MODES else None
         trigger_time = self._mode_config(mode).get(
             CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
         )
@@ -452,7 +452,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 entry_delay=0,
                 trigger_time=self._mode_config(
                     self._fsm.settled_state
-                    if self._fsm.settled_state in ARM_MODES
+                    if self._fsm.settled_state in alarm_state_lib.ARM_MODES
                     else None
                 ).get(CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME),
             )
@@ -469,18 +469,21 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 self._async_schedule(self._fsm.arming_until)
             return
 
-        if display not in ARM_MODES and display != AlarmControlPanelState.TRIGGERED:
+        armed = display in alarm_state_lib.ARM_MODES
+        if not armed and display != AlarmControlPanelState.TRIGGERED:
             return  # disarmed, not always_on - ignore
 
+        # Mode membership only gates *starting* a new trigger. Once already
+        # TRIGGERED/PENDING, any subsequent sensor is allowed to shorten the
+        # countdown regardless of its own mode list - a second sensor
+        # tripping during an active sequence is significant on its own
+        # merits, and re-litigating membership here isn't worth the
+        # complexity for what's already a fast-moving safety path.
         mode_membership = options.get(CONF_MODES)
-        if (
-            display in ARM_MODES
-            and mode_membership is not None
-            and display not in mode_membership
-        ):
+        if armed and mode_membership is not None and display not in mode_membership:
             return
 
-        mode = display if display in ARM_MODES else self._fsm.previous_state
+        mode = display if armed else self._fsm.previous_state
         entry_delay = options.get(CONF_SENSOR_ENTRY_DELAY)
         if entry_delay is None:
             entry_delay = self._mode_config(mode).get(

@@ -3,7 +3,6 @@ import pytest
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.midnight_alerts import sensors
-from custom_components.midnight_alerts.const import DOMAIN
 
 
 @pytest.fixture
