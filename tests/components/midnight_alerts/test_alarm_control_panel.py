@@ -6,6 +6,7 @@ import pytest
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import State
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -319,6 +320,61 @@ async def test_override_code_bypasses_use_exit_delay_false_abort(hass):
     await hass.async_block_till_done()
     # would normally abort back to DISARMED - override keeps it ARMING
     assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMING
+
+
+async def test_area_limit_set_via_real_flow_is_enforced_by_the_engine(hass):
+    """area_limit, set through the actual "Add user" flow (not a hand-built
+    ConfigSubentry), must actually restrict which area the code works in -
+    proving the manage-users UI is wired to the real PIN engine, not just
+    that the field persists.
+    """
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[_area_subentry("area1"), _area_subentry("area2")],
+    )
+    (area1,) = [
+        s
+        for s in entry.subentries.values()
+        if s.subentry_type == SUBENTRY_TYPE_AREA and s.subentry_id == "area1"
+    ]
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_USER),
+        context={"source": "user"},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Alice",
+            "code": "1234",
+            "can_arm": True,
+            "can_disarm": True,
+            "is_override_code": False,
+            "enabled": True,
+            "area_limit": [area1.subentry_id],
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    area1_entity_id = _find_entity_id(hass, "area1")
+    area2_entity_id = _find_entity_id(hass, "area2")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": area1_entity_id, "code": "1234"},
+        blocking=True,
+    )
+    assert hass.states.get(area1_entity_id).state == AlarmControlPanelState.ARMED_HOME
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "alarm_control_panel",
+            "alarm_arm_home",
+            {"entity_id": area2_entity_id, "code": "1234"},
+            blocking=True,
+        )
+    assert hass.states.get(area2_entity_id).state == AlarmControlPanelState.DISARMED
 
 
 async def test_sensor_trip_while_armed_triggers_after_entry_delay(hass, freezer):

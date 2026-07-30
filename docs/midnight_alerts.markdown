@@ -103,7 +103,7 @@ area's device, choose **Reconfigure → Edit name and timers**.
 ### Attaching sensors to an area
 
 From the area's **Reconfigure → Manage sensors** step, pick any
-`binary_sensor` entities that should feed this area. Two options apply to
+`binary_sensor` entities that should feed this area. These options apply to
 sensors newly picked in that same step (already-attached sensors keep
 whatever they were given — see [Known limitations](#known-limitations)):
 
@@ -112,6 +112,9 @@ whatever they were given — see [Known limitations](#known-limitations)):
 | Sensors | The `binary_sensor` entities to attach or detach. |
 | Hold arming open until closed | If still open when the exit delay ends, wait for it to close instead of finishing arming with it open. |
 | Debounce (seconds) | The sensor must stay open this long before it counts as a real trip, filtering a momentary blip. `0` disables debouncing. |
+| Always on | This sensor triggers the alarm regardless of arm state, even while disarmed - for a smoke/water sensor that should always be monitored. |
+| Entry delay override (seconds) | Overrides the area mode's own entry delay for just this sensor. Leave blank to use the area's default. |
+| Arm modes | Restrict this sensor to only trigger while armed in specific modes. Leave blank for no restriction (triggers in any mode the area is armed in). |
 
 A sensor attached to an area triggers the alarm (after that mode's entry
 delay) whenever it opens while the area is armed in a mode that mode's
@@ -127,7 +130,9 @@ exists — after that, every arm/disarm action needs a matching code.
 | Name | For your own reference. |
 | PIN code | Leave blank for a user who can arm/disarm without entering a code. |
 | Can arm / Can disarm | Which actions this user's code is allowed to perform. |
+| Override code | When arming with this code, open sensors are bypassed (no holding for `arm_on_close`, no aborting on `use_exit_delay`) instead of blocking the arm. |
 | Enabled | A disabled user's code stops working without deleting them. |
+| Areas | Restrict this user's code to specific areas. Leave blank for no restriction (works in every area). |
 
 ### Sensor groups (N-of-M confirmation)
 
@@ -349,14 +354,10 @@ Security account or monitoring plan — manage or cancel that separately at
   Home Assistant instance.
 - Alarmo automations are never imported, only counted — recreate the ones
   you still need as ordinary Home Assistant automations.
-- A few per-sensor and per-user behaviors carried over from Alarmo — a
-  sensor that's always considered "open" regardless of arm state, a
-  sensor's own entry-delay override, restricting one mode only, a user's
-  code restricted to specific areas, a user's "override code" bypassing
-  sensor-arming holds, and a sensor with its entry delay turned off
-  entirely (triggers instantly) — currently only arrive via **Import from
-  Alarmo**. There's no manual UI to set them on a natively-added sensor or
-  user yet, though the behavior itself is fully functional once set.
+- A sensor with its entry delay turned off entirely (triggers instantly,
+  regardless of the area mode's own entry delay) is fully functional but
+  currently only settable via **Import from Alarmo** - there's no manual
+  UI field for it yet.
 - The **Manage sensors** step's "hold arming open until closed" and
   "debounce" options only apply to sensors newly attached in that same
   submission — changing them for an already-attached sensor means

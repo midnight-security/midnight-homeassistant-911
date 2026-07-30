@@ -148,11 +148,13 @@ rules:
   docs-known-limitations:
     status: done
     comment: >-
-      Now also documents Alarmo-import specifics: automations are counted
-      but never imported, and always_on/per-sensor entry-delay
-      override/mode-restriction/user area-restriction currently only
-      arrive via import (no manual UI for them yet), plus the
-      manage-sensors new-vs-existing-sensor caveat.
+      Documents Alarmo-import specifics (automations counted but never
+      imported) and the manage-sensors new-vs-existing-sensor caveat.
+      always_on, per-sensor entry-delay override, mode-restriction, user
+      area-restriction, and is_override_code all gained both manual UI and
+      working behavior (previously import-only/inert); only
+      use_entry_delay (the per-sensor toggle to skip the entry delay
+      entirely) remains import-only, with no manual UI field yet.
   docs-supported-devices:
     status: exempt
     comment: Cloud service integration with no physical devices to support.

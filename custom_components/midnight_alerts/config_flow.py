@@ -21,6 +21,7 @@ from .const import (
     ARM_MODES,
     CONF_AREA_LIMIT,
     CONF_API_KEY,
+    CONF_ALWAYS_ON,
     CONF_ARM_ON_CLOSE,
     CONF_CAN_ARM,
     CONF_CAN_DISARM,
@@ -35,6 +36,7 @@ from .const import (
     CONF_IS_OVERRIDE_CODE,
     CONF_MODES,
     CONF_NAME,
+    CONF_SENSOR_ENTRY_DELAY,
     CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
     DEFAULT_ENTRY_TIME,
@@ -264,10 +266,11 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Attach/detach binary_sensor entities to/from this area.
 
-        `arm_on_close`/`delay_on` here apply only to newly-attached sensors
-        in this same submission - already-attached sensors keep whatever
-        they had. Per-sensor editing of an already-attached sensor's flags
-        isn't exposed yet; re-detach and re-attach it to change them.
+        `arm_on_close`/`delay_on`/`always_on`/`entry_delay`/`modes` here
+        apply only to newly-attached sensors in this same submission -
+        already-attached sensors keep whatever they had. Per-sensor editing
+        of an already-attached sensor's flags isn't exposed yet; re-detach
+        and re-attach it to change them.
         """
         subentry = self._get_reconfigure_subentry()
         hass = self.hass
@@ -280,15 +283,27 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
                     sensors.async_clear_sensor_options(hass, entity_id)
             for entity_id in selected:
                 if entity_id not in current:
+                    # entry_delay/modes only get set if the user actually
+                    # picked something - an empty modes list would mean
+                    # "restricted to zero modes" (blocks every mode), not
+                    # "unrestricted", so it must stay absent rather than [].
+                    extra_options: dict[str, Any] = {}
+                    if user_input.get(CONF_SENSOR_ENTRY_DELAY) is not None:
+                        extra_options[CONF_SENSOR_ENTRY_DELAY] = user_input[
+                            CONF_SENSOR_ENTRY_DELAY
+                        ]
+                    if user_input.get(CONF_MODES):
+                        extra_options[CONF_MODES] = user_input[CONF_MODES]
                     sensors.async_set_sensor_options(
                         hass,
                         entity_id,
                         area_subentry_id=subentry.subentry_id,
-                        always_on=False,
+                        always_on=user_input.get(CONF_ALWAYS_ON, False),
                         allow_open=False,
                         use_exit_delay=True,
                         arm_on_close=user_input.get(CONF_ARM_ON_CLOSE, False),
                         delay_on=user_input.get(CONF_DELAY_ON, 0),
+                        **extra_options,
                     )
             # Sensor associations live in entity-registry options on the
             # *sensor* entities, not in this subentry's own data - so
@@ -313,41 +328,47 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
                     ),
                     vol.Optional(CONF_ARM_ON_CLOSE, default=False): bool,
                     vol.Optional(CONF_DELAY_ON, default=0): vol.Coerce(int),
+                    vol.Optional(CONF_ALWAYS_ON, default=False): bool,
+                    vol.Optional(CONF_SENSOR_ENTRY_DELAY): vol.Coerce(int),
+                    vol.Optional(CONF_MODES, default=[]): _MODE_SELECTOR,
                 }
             ),
         )
 
 
-USER_CREATE_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_NAME): str,
-        vol.Required(CONF_CODE): str,
-        vol.Required(CONF_CAN_ARM, default=True): bool,
-        vol.Required(CONF_CAN_DISARM, default=True): bool,
-        vol.Optional(CONF_IS_OVERRIDE_CODE, default=False): bool,
-        vol.Optional(CONF_ENABLED, default=True): bool,
-    }
-)
+def _area_limit_selector(entry: ConfigEntry) -> selector.SelectSelector:
+    """Multi-select of the entry's current areas, by subentry_id."""
+    options = [
+        {"value": subentry.subentry_id, "label": subentry.title}
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(options=options, multiple=True)
+    )
 
-USER_RECONFIGURE_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_NAME): str,
-        vol.Optional(CONF_CODE, default=""): str,
-        vol.Required(CONF_CAN_ARM, default=True): bool,
-        vol.Required(CONF_CAN_DISARM, default=True): bool,
-        vol.Optional(CONF_IS_OVERRIDE_CODE, default=False): bool,
-        vol.Optional(CONF_ENABLED, default=True): bool,
-    }
-)
+
+def _user_schema(entry: ConfigEntry, *, code_required: bool) -> vol.Schema:
+    code_field = (
+        vol.Required(CONF_CODE)
+        if code_required
+        else vol.Optional(CONF_CODE, default="")
+    )
+    return vol.Schema(
+        {
+            vol.Required(CONF_NAME): str,
+            code_field: str,
+            vol.Required(CONF_CAN_ARM, default=True): bool,
+            vol.Required(CONF_CAN_DISARM, default=True): bool,
+            vol.Optional(CONF_IS_OVERRIDE_CODE, default=False): bool,
+            vol.Optional(CONF_ENABLED, default=True): bool,
+            vol.Optional(CONF_AREA_LIMIT, default=[]): _area_limit_selector(entry),
+        }
+    )
 
 
 class UserSubentryFlowHandler(ConfigSubentryFlow):
-    """Create/reconfigure a Midnight Alarm user (PIN).
-
-    Phase 1 scope: `area_limit` always defaults to `[]` (unrestricted) - the
-    data model and PIN-resolution logic already support restricting a user
-    to specific areas, but there's no UI to set it yet.
-    """
+    """Create/reconfigure a Midnight Alarm user (PIN)."""
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -355,9 +376,12 @@ class UserSubentryFlowHandler(ConfigSubentryFlow):
         """Create a new user."""
         if user_input is not None:
             hashed = await pin.async_hash_code(self.hass, user_input[CONF_CODE])
-            data = {**user_input, CONF_CODE: hashed, CONF_AREA_LIMIT: []}
+            data = {**user_input, CONF_CODE: hashed}
             return self.async_create_entry(title=user_input[CONF_NAME], data=data)
-        return self.async_show_form(step_id="user", data_schema=USER_CREATE_SCHEMA)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_user_schema(self._get_entry(), code_required=True),
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -383,7 +407,7 @@ class UserSubentryFlowHandler(ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                USER_RECONFIGURE_SCHEMA,
+                _user_schema(self._get_entry(), code_required=False),
                 {k: v for k, v in subentry.data.items() if k != CONF_CODE},
             ),
         )

@@ -11,6 +11,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.midnight_alerts import pin, sensors
 from custom_components.midnight_alerts.const import (
     CONF_API_KEY,
+    CONF_ALWAYS_ON,
+    CONF_AREA_LIMIT,
     CONF_ARM_ON_CLOSE,
     CONF_CODE,
     CONF_DELAY_ON,
@@ -18,6 +20,7 @@ from custom_components.midnight_alerts.const import (
     CONF_EVENT_COUNT,
     CONF_MODES,
     CONF_NAME,
+    CONF_SENSOR_ENTRY_DELAY,
     CONF_TIMEOUT,
     DOMAIN,
     SUBENTRY_TYPE_ALARMO_IMPORT,
@@ -425,6 +428,98 @@ async def test_manage_sensors_applies_arm_on_close_and_delay_on_to_new_sensors(h
     options = sensors.async_get_sensor_options(hass, sensor_entity_id)
     assert options[CONF_ARM_ON_CLOSE] is True
     assert options[CONF_DELAY_ON] == 5
+
+
+def _home_area_subentry() -> ConfigSubentry:
+    return ConfigSubentry(
+        data={
+            CONF_NAME: "Home",
+            CONF_MODES: {
+                "armed_away": {
+                    "enabled": True,
+                    "exit_time": 60,
+                    "entry_time": 30,
+                    "trigger_time": 120,
+                },
+                "armed_home": {"enabled": False},
+                "armed_night": {"enabled": False},
+                "armed_vacation": {"enabled": False},
+                "armed_custom_bypass": {"enabled": False},
+            },
+        },
+        subentry_type=SUBENTRY_TYPE_AREA,
+        title="Home",
+        unique_id=None,
+    )
+
+
+async def test_manage_sensors_applies_always_on_entry_delay_and_modes_to_new_sensors(
+    hass,
+):
+    entry = await _entry(hass)
+    hass.config_entries.async_add_subentry(entry, _home_area_subentry())
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"next_step_id": "manage_sensors"}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"],
+            {
+                "sensors": [sensor_entity_id],
+                CONF_ALWAYS_ON: True,
+                CONF_SENSOR_ENTRY_DELAY: 15,
+                CONF_MODES: ["armed_away"],
+            },
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+
+    options = sensors.async_get_sensor_options(hass, sensor_entity_id)
+    assert options[CONF_ALWAYS_ON] is True
+    assert options[CONF_SENSOR_ENTRY_DELAY] == 15
+    assert options[CONF_MODES] == ["armed_away"]
+
+
+async def test_manage_sensors_leaves_entry_delay_and_modes_unset_when_blank(hass):
+    """An empty modes selection must stay absent, not [] (which would mean
+
+    "restricted to zero modes" - i.e. blocked in every mode - rather than
+    "unrestricted").
+    """
+    entry = await _entry(hass)
+    hass.config_entries.async_add_subentry(entry, _home_area_subentry())
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"next_step_id": "manage_sensors"}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {"sensors": [sensor_entity_id]}
+        )
+        await hass.async_block_till_done()
+
+    options = sensors.async_get_sensor_options(hass, sensor_entity_id)
+    assert CONF_SENSOR_ENTRY_DELAY not in options
+    assert CONF_MODES not in options
 
 
 def _write_alarmo_storage(hass) -> None:

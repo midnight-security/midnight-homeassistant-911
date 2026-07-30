@@ -74,11 +74,17 @@
           "data": {
             "sensors": "Sensors",
             "arm_on_close": "New sensors: hold arming open until closed",
-            "delay_on": "New sensors: debounce (seconds)"
+            "delay_on": "New sensors: debounce (seconds)",
+            "always_on": "New sensors: always on",
+            "entry_delay": "New sensors: entry delay override (seconds)",
+            "modes": "New sensors: arm modes"
           },
           "data_description": {
             "arm_on_close": "If a newly-attached sensor is still open when the exit delay ends, wait for it to close instead of arming with it open",
-            "delay_on": "A newly-attached sensor must stay open this many seconds before it's treated as a real trip - filters a momentary blip. 0 disables debouncing"
+            "delay_on": "A newly-attached sensor must stay open this many seconds before it's treated as a real trip - filters a momentary blip. 0 disables debouncing",
+            "always_on": "This sensor triggers the alarm regardless of arm state, even while disarmed",
+            "entry_delay": "Overrides the area mode's own entry delay for just this sensor. Leave blank to use the area's default",
+            "modes": "Restrict this sensor to only trigger while armed in these modes. Leave blank for no restriction"
           }
         }
       },
@@ -149,10 +155,12 @@
             "can_arm": "Can arm",
             "can_disarm": "Can disarm",
             "is_override_code": "Override code",
-            "enabled": "Enabled"
+            "enabled": "Enabled",
+            "area_limit": "Areas"
           },
           "data_description": {
-            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm"
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm",
+            "area_limit": "Restrict this code to specific areas. Leave blank for no restriction"
           }
         },
         "reconfigure": {
@@ -163,11 +171,13 @@
             "can_arm": "Can arm",
             "can_disarm": "Can disarm",
             "is_override_code": "Override code",
-            "enabled": "Enabled"
+            "enabled": "Enabled",
+            "area_limit": "Areas"
           },
           "data_description": {
             "code": "Leave blank to keep the current PIN unchanged",
-            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm"
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm",
+            "area_limit": "Restrict this code to specific areas. Leave blank for no restriction"
           }
         }
       }
