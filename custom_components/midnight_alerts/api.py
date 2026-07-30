@@ -8,7 +8,7 @@ from . import error_reporting
 
 _LOGGER = logging.getLogger(__name__)
 
-BASE_URL = "https://alerts.midnight.security/api"
+BASE_URL = "https://api.midnight.security/functions/v1"
 
 
 class MidnightAlertsApiError(Exception):
