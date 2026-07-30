@@ -65,12 +65,49 @@
         "manage_sensors": {
           "title": "Manage sensors",
           "data": {
-            "sensors": "Sensors"
+            "sensors": "Sensors",
+            "arm_on_close": "New sensors: hold arming open until closed",
+            "delay_on": "New sensors: debounce (seconds)"
+          },
+          "data_description": {
+            "arm_on_close": "If a newly-attached sensor is still open when the exit delay ends, wait for it to close instead of arming with it open",
+            "delay_on": "A newly-attached sensor must stay open this many seconds before it's treated as a real trip - filters a momentary blip. 0 disables debouncing"
           }
         }
       },
       "abort": {
         "sensors_updated": "Sensors updated"
+      }
+    },
+    "sensor_group": {
+      "entry_type": "Sensor group",
+      "initiate_flow": {
+        "user": "Add sensor group"
+      },
+      "step": {
+        "user": {
+          "title": "Add sensor group",
+          "data": {
+            "name": "Name",
+            "entities": "Member sensors",
+            "timeout": "Confirmation window (seconds)",
+            "event_count": "Sensors required to confirm"
+          },
+          "data_description": {
+            "entities": "Each of these must also be individually attached to the relevant area via that area's \"Manage sensors\" step",
+            "timeout": "How many seconds apart member trips can be and still count together",
+            "event_count": "How many members must trip within the window before it counts as one confirmed event"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure sensor group",
+          "data": {
+            "name": "Name",
+            "entities": "Member sensors",
+            "timeout": "Confirmation window (seconds)",
+            "event_count": "Sensors required to confirm"
+          }
+        }
       }
     },
     "user": {

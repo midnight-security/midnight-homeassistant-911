@@ -21,22 +21,30 @@ from .const import (
     ARM_MODES,
     CONF_AREA_LIMIT,
     CONF_API_KEY,
+    CONF_ARM_ON_CLOSE,
     CONF_CAN_ARM,
     CONF_CAN_DISARM,
     CONF_CODE,
+    CONF_DELAY_ON,
     CONF_ENABLE_CRASH_REPORTING,
     CONF_ENABLED,
+    CONF_ENTITIES,
     CONF_ENTRY_TIME,
+    CONF_EVENT_COUNT,
     CONF_EXIT_TIME,
     CONF_IS_OVERRIDE_CODE,
     CONF_MODES,
     CONF_NAME,
+    CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
+    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
+    DEFAULT_SENSOR_GROUP_TIMEOUT,
     DEFAULT_TRIGGER_TIME,
     DOMAIN,
     SUBENTRY_TYPE_AREA,
+    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
 )
 
@@ -88,10 +96,11 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_supported_subentry_types(
         cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
-        """Return the Midnight Alarm subentry types: areas and users."""
+        """Return the Midnight Alarm subentry types: areas, users, sensor groups."""
         return {
             SUBENTRY_TYPE_AREA: AreaSubentryFlowHandler,
             SUBENTRY_TYPE_USER: UserSubentryFlowHandler,
+            SUBENTRY_TYPE_SENSOR_GROUP: SensorGroupSubentryFlowHandler,
         }
 
 
@@ -249,7 +258,13 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_manage_sensors(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Attach/detach binary_sensor entities to/from this area."""
+        """Attach/detach binary_sensor entities to/from this area.
+
+        `arm_on_close`/`delay_on` here apply only to newly-attached sensors
+        in this same submission - already-attached sensors keep whatever
+        they had. Per-sensor editing of an already-attached sensor's flags
+        isn't exposed yet; re-detach and re-attach it to change them.
+        """
         subentry = self._get_reconfigure_subentry()
         hass = self.hass
         current = sensors.sensors_for_area(hass, subentry.subentry_id)
@@ -268,6 +283,8 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
                         always_on=False,
                         allow_open=False,
                         use_exit_delay=True,
+                        arm_on_close=user_input.get(CONF_ARM_ON_CLOSE, False),
+                        delay_on=user_input.get(CONF_DELAY_ON, 0),
                     )
             # Sensor associations live in entity-registry options on the
             # *sensor* entities, not in this subentry's own data - so
@@ -290,6 +307,8 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
                             domain="binary_sensor", multiple=True
                         )
                     ),
+                    vol.Optional(CONF_ARM_ON_CLOSE, default=False): bool,
+                    vol.Optional(CONF_DELAY_ON, default=0): vol.Coerce(int),
                 }
             ),
         )
@@ -360,5 +379,63 @@ class UserSubentryFlowHandler(ConfigSubentryFlow):
             data_schema=self.add_suggested_values_to_schema(
                 USER_RECONFIGURE_SCHEMA,
                 {k: v for k, v in subentry.data.items() if k != CONF_CODE},
+            ),
+        )
+
+
+SENSOR_GROUP_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_NAME): str,
+        vol.Required(CONF_ENTITIES): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
+        ),
+        vol.Required(
+            CONF_TIMEOUT, default=DEFAULT_SENSOR_GROUP_TIMEOUT
+        ): vol.Coerce(int),
+        vol.Required(
+            CONF_EVENT_COUNT, default=DEFAULT_SENSOR_GROUP_EVENT_COUNT
+        ): vol.Coerce(int),
+    }
+)
+
+
+class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
+    """Create/reconfigure an N-of-M cross-zone sensor group.
+
+    Membership here is a *filter* layered on top of ordinary sensors, not a
+    fourth thing to attach - every member must also be individually attached
+    to the relevant area via the area's "manage sensors" step, or the area
+    entity never subscribes to its state changes in the first place and the
+    group can never see it trip.
+    """
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Create a new sensor group."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=user_input[CONF_NAME], data=user_input
+            )
+        return self.async_show_form(
+            step_id="user", data_schema=SENSOR_GROUP_SCHEMA
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Reconfigure an existing sensor group."""
+        subentry = self._get_reconfigure_subentry()
+        if user_input is not None:
+            return self.async_update_and_abort(
+                self._get_entry(),
+                subentry,
+                title=user_input[CONF_NAME],
+                data_updates=user_input,
+            )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                SENSOR_GROUP_SCHEMA, subentry.data
             ),
         )

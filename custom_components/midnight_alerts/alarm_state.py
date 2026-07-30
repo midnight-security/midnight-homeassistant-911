@@ -36,6 +36,7 @@ class AreaFsm:
     pending_until: datetime | None = None
     trigger_until: datetime | None = None
     disarm_after_trigger: bool = False
+    held_open: bool = False
 
 
 def display_state(
@@ -48,7 +49,9 @@ def display_state(
     which has the same side effect for the same reason (nothing else polls
     this entity to notice the deadline has passed).
     """
-    if fsm.settled_state in ARM_MODES and fsm.arming_until and now < fsm.arming_until:
+    if fsm.settled_state in ARM_MODES and fsm.arming_until and (
+        now < fsm.arming_until or fsm.held_open
+    ):
         return AlarmControlPanelState.ARMING, fsm
 
     if fsm.settled_state == AlarmControlPanelState.TRIGGERED:
@@ -84,6 +87,7 @@ def start_arming(
         arming_until=deadline,
         pending_until=None,
         trigger_until=None,
+        held_open=False,
     )
 
 
@@ -93,7 +97,22 @@ def abort_arming(fsm: AreaFsm) -> AreaFsm:
         fsm,
         settled_state=fsm.previous_state or AlarmControlPanelState.DISARMED,
         arming_until=None,
+        held_open=False,
     )
+
+
+def hold_for_close(fsm: AreaFsm) -> AreaFsm:
+    """Exit delay elapsed but an arm_on_close sensor is still open - keep waiting.
+
+    Displays as ARMING indefinitely (no new deadline) until `release_hold`
+    is called once that sensor closes.
+    """
+    return replace(fsm, held_open=True)
+
+
+def release_hold(fsm: AreaFsm, *, now: datetime) -> AreaFsm:
+    """All arm_on_close sensors have closed - finish arming immediately."""
+    return replace(fsm, held_open=False, arming_until=now)
 
 
 def start_trigger(

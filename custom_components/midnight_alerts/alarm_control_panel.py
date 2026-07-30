@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from functools import partial
 from typing import Any, Self
 
 from homeassistant.components.alarm_control_panel import (
@@ -29,6 +30,7 @@ from homeassistant.core import (
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
+    async_call_later,
     async_track_point_in_time,
     async_track_state_change_event,
 )
@@ -38,21 +40,30 @@ from homeassistant.util import dt as dt_util
 from . import pin, sensors
 from .alarm_state import ARM_MODES, AreaFsm, display_state
 from . import alarm_state as alarm_state_lib
+from .sensor_groups import GroupTally, is_confirmed
 from .const import (
     CONF_ALWAYS_ON,
+    CONF_ARM_ON_CLOSE,
+    CONF_DELAY_ON,
     CONF_ENABLED,
+    CONF_ENTITIES,
     CONF_ENTRY_TIME,
+    CONF_EVENT_COUNT,
     CONF_EXIT_TIME,
     CONF_MODES,
     CONF_SENSOR_ENTRY_DELAY,
+    CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
     CONF_USE_EXIT_DELAY,
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
+    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
+    DEFAULT_SENSOR_GROUP_TIMEOUT,
     DEFAULT_TRIGGER_TIME,
     DOMAIN,
     MODE_TO_FEATURE,
     SUBENTRY_TYPE_AREA,
+    SUBENTRY_TYPE_SENSOR_GROUP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,6 +108,7 @@ class _AreaFsmExtraData(ExtraStoredData):
             if self.fsm.trigger_until
             else None,
             "disarm_after_trigger": self.fsm.disarm_after_trigger,
+            "held_open": self.fsm.held_open,
         }
 
     @classmethod
@@ -116,6 +128,7 @@ class _AreaFsmExtraData(ExtraStoredData):
                 pending_until=_dt(restored.get("pending_until")),
                 trigger_until=_dt(restored.get("trigger_until")),
                 disarm_after_trigger=bool(restored.get("disarm_after_trigger")),
+                held_open=bool(restored.get("held_open")),
             )
         except (KeyError, ValueError):
             return None
@@ -136,6 +149,8 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self._subentry = subentry
         self._fsm = AreaFsm()
         self._unsub_callbacks: list[CALLBACK_TYPE] = []
+        self._delay_on_unsub: dict[str, CALLBACK_TYPE] = {}
+        self._group_tallies: dict[str, GroupTally] = {}
 
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = DeviceInfo(
@@ -179,11 +194,12 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         if (extra := await self.async_get_last_extra_data()) is not None:
             if restored := _AreaFsmExtraData.from_dict(extra.as_dict()):
                 self._fsm = restored.fsm
-                self._async_schedule(
-                    self._fsm.arming_until,
-                    self._fsm.pending_until,
-                    self._fsm.trigger_until,
-                )
+                if self._fsm.arming_until:
+                    self._async_schedule_arming(self._fsm.arming_until)
+                else:
+                    self._async_schedule(
+                        self._fsm.pending_until, self._fsm.trigger_until
+                    )
 
         entity_ids = sensors.sensors_for_area(self.hass, self._subentry.subentry_id)
         if entity_ids:
@@ -196,6 +212,9 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
     async def async_will_remove_from_hass(self) -> None:
         """Cancel any outstanding scheduled callbacks."""
         self._async_cancel_scheduled()
+        for unsub in self._delay_on_unsub.values():
+            unsub()
+        self._delay_on_unsub = {}
         await super().async_will_remove_from_hass()
 
     @property
@@ -221,9 +240,40 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                     )
                 )
 
+    def _async_schedule_arming(self, deadline: datetime | None) -> None:
+        """Like _async_schedule, but checks for arm_on_close holds at the deadline."""
+        self._async_cancel_scheduled()
+        if deadline is not None:
+            self._unsub_callbacks.append(
+                async_track_point_in_time(
+                    self.hass, self._async_arming_deadline_reached, deadline
+                )
+            )
+
     @callback
     def _async_scheduled_update(self, now: datetime) -> None:
         self.async_write_ha_state()
+
+    @callback
+    def _async_arming_deadline_reached(self, now: datetime) -> None:
+        """Exit delay has elapsed - finish arming, unless something holds it open."""
+        if self._open_arm_on_close_sensors():
+            self._fsm = alarm_state_lib.hold_for_close(self._fsm)
+        self.async_write_ha_state()
+
+    def _open_arm_on_close_sensors(self) -> list[str]:
+        """Currently-open sensors in this area flagged arm_on_close."""
+        open_sensors = []
+        for entity_id in sensors.sensors_for_area(
+            self.hass, self._subentry.subentry_id
+        ):
+            options = sensors.async_get_sensor_options(self.hass, entity_id) or {}
+            if not options.get(CONF_ARM_ON_CLOSE):
+                continue
+            state = self.hass.states.get(entity_id)
+            if state and sensors.parse_sensor_state(state.state) == "open":
+                open_sensors.append(entity_id)
+        return open_sensors
 
     # --- arm / disarm / trigger -----------------------------------------
 
@@ -243,7 +293,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             self._fsm, mode=mode, now=dt_util.utcnow(), exit_time=exit_time
         )
         self.async_write_ha_state()
-        self._async_schedule(self._fsm.arming_until)
+        self._async_schedule_arming(self._fsm.arming_until)
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Arm away."""
@@ -305,11 +355,96 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
     @callback
     def _async_sensor_event(self, event: Event[EventStateChangedData]) -> None:
         new_state = event.data["new_state"]
-        if new_state is None or sensors.parse_sensor_state(new_state.state) != "open":
-            return  # Phase 1 only reacts to opening edges, matching Alarmo's core behavior
-
+        if new_state is None:
+            return
         entity_id = event.data["entity_id"]
+        status = sensors.parse_sensor_state(new_state.state)
+
+        if status == "open":
+            self._async_handle_sensor_open(entity_id)
+        elif status == "closed":
+            self._async_handle_sensor_closed(entity_id)
+
+    def _async_handle_sensor_open(self, entity_id: str) -> None:
         options = sensors.async_get_sensor_options(self.hass, entity_id) or {}
+
+        delay_on = options.get(CONF_DELAY_ON) or 0
+        if delay_on:
+            # Debounce: only treat this as a real trip if the sensor is
+            # *still* open `delay_on` seconds from now - filters a
+            # momentary blip (wind, a glitchy contact) from counting.
+            if unsub := self._delay_on_unsub.pop(entity_id, None):
+                unsub()
+            self._delay_on_unsub[entity_id] = async_call_later(
+                self.hass,
+                delay_on,
+                partial(self._async_delay_on_elapsed, entity_id, options),
+            )
+            return
+
+        self._async_process_open_sensor(entity_id, options)
+
+    @callback
+    def _async_delay_on_elapsed(
+        self, entity_id: str, options: dict[str, Any], now: datetime
+    ) -> None:
+        self._delay_on_unsub.pop(entity_id, None)
+        state = self.hass.states.get(entity_id)
+        if not state or sensors.parse_sensor_state(state.state) != "open":
+            return  # closed again before delay_on elapsed - a filtered blip
+        self._async_process_open_sensor(entity_id, options)
+
+    def _async_handle_sensor_closed(self, entity_id: str) -> None:
+        if unsub := self._delay_on_unsub.pop(entity_id, None):
+            unsub()  # the blip ended before its debounce confirmed it
+
+        if not self._fsm.held_open:
+            return
+        options = sensors.async_get_sensor_options(self.hass, entity_id) or {}
+        if not options.get(CONF_ARM_ON_CLOSE):
+            return
+        if self._open_arm_on_close_sensors():
+            return  # other arm_on_close sensors are still open
+        self._fsm = alarm_state_lib.release_hold(self._fsm, now=dt_util.utcnow())
+        self.async_write_ha_state()
+
+    def _groups_for_sensor(self, entity_id: str) -> list[ConfigSubentry]:
+        return [
+            subentry
+            for subentry in self._entry.subentries.values()
+            if subentry.subentry_type == SUBENTRY_TYPE_SENSOR_GROUP
+            and entity_id in subentry.data.get(CONF_ENTITIES, [])
+        ]
+
+    def _sensor_confirmed_by_groups(self, entity_id: str, now: datetime) -> bool:
+        """Whether this sensor's trip counts as a real event right now.
+
+        A sensor not in any group is ungated (matches Phase 1 behavior). A
+        grouped sensor's trip only counts once `event_count` of its group's
+        members have tripped within `timeout` seconds of each other -
+        filtering out e.g. a single pet-triggered motion sensor.
+        """
+        groups = self._groups_for_sensor(entity_id)
+        if not groups:
+            return True
+
+        confirmed = False
+        for group in groups:
+            tally = self._group_tallies.get(group.subentry_id, GroupTally())
+            tally = tally.record_trip(entity_id, now)
+            self._group_tallies[group.subentry_id] = tally
+            if is_confirmed(
+                tally,
+                now=now,
+                timeout=group.data.get(CONF_TIMEOUT, DEFAULT_SENSOR_GROUP_TIMEOUT),
+                event_count=group.data.get(
+                    CONF_EVENT_COUNT, DEFAULT_SENSOR_GROUP_EVENT_COUNT
+                ),
+            ):
+                confirmed = True
+        return confirmed
+
+    def _async_process_open_sensor(self, entity_id: str, options: dict[str, Any]) -> None:
         display = self.alarm_state  # also runs any pending auto-revert derivation
 
         if options.get(CONF_ALWAYS_ON):
@@ -322,6 +457,9 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 ).get(CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME),
             )
             return
+
+        if not self._sensor_confirmed_by_groups(entity_id, dt_util.utcnow()):
+            return  # not enough corroborating sensors yet - wait for more
 
         if display == AlarmControlPanelState.ARMING:
             if not options.get(CONF_USE_EXIT_DELAY, True):

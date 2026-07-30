@@ -8,6 +8,8 @@ from custom_components.midnight_alerts.alarm_state import (
     abort_arming,
     disarm,
     display_state,
+    hold_for_close,
+    release_hold,
     shorten_pending,
     start_arming,
     start_trigger,
@@ -100,6 +102,45 @@ def test_shorten_pending_never_lengthens():
 
     longer = shorten_pending(fsm, now=NOW, entry_delay=60)
     assert longer.pending_until == original_pending_until
+
+
+def test_held_open_keeps_showing_arming_past_the_deadline():
+    fsm = start_arming(
+        AreaFsm(), mode=AlarmControlPanelState.ARMED_AWAY, now=NOW, exit_time=60
+    )
+    # exit delay has fully elapsed...
+    state, fsm = display_state(fsm, NOW + timedelta(seconds=61))
+    assert state == AlarmControlPanelState.ARMED_AWAY  # would normally finish arming
+
+    # ...but a blocking sensor is still open, so we hold instead
+    fsm = hold_for_close(fsm)
+    state, fsm = display_state(fsm, NOW + timedelta(seconds=61))
+    assert state == AlarmControlPanelState.ARMING
+
+    # still holds arbitrarily far past the original deadline
+    state, fsm = display_state(fsm, NOW + timedelta(hours=1))
+    assert state == AlarmControlPanelState.ARMING
+
+
+def test_release_hold_finishes_arming_immediately():
+    fsm = start_arming(
+        AreaFsm(), mode=AlarmControlPanelState.ARMED_AWAY, now=NOW, exit_time=60
+    )
+    fsm = hold_for_close(fsm)
+    later = NOW + timedelta(minutes=5)
+
+    fsm = release_hold(fsm, now=later)
+    state, _ = display_state(fsm, later)
+    assert state == AlarmControlPanelState.ARMED_AWAY
+
+
+def test_abort_arming_clears_held_open():
+    fsm = start_arming(
+        AreaFsm(), mode=AlarmControlPanelState.ARMED_AWAY, now=NOW, exit_time=60
+    )
+    fsm = hold_for_close(fsm)
+    fsm = abort_arming(fsm)
+    assert fsm.held_open is False
 
 
 def test_disarm_resets_everything():

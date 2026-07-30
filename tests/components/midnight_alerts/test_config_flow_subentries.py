@@ -9,11 +9,17 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.midnight_alerts import pin, sensors
 from custom_components.midnight_alerts.const import (
     CONF_API_KEY,
+    CONF_ARM_ON_CLOSE,
     CONF_CODE,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_EVENT_COUNT,
     CONF_MODES,
     CONF_NAME,
+    CONF_TIMEOUT,
     DOMAIN,
     SUBENTRY_TYPE_AREA,
+    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
 )
 
@@ -226,3 +232,135 @@ async def test_reconfigure_user_blank_code_keeps_existing(hass):
     updated = entry.subentries[subentry.subentry_id]
     assert updated.data[CONF_CODE] == hashed  # unchanged
     assert updated.data["can_arm"] is False  # other fields did update
+
+
+async def test_add_sensor_group(hass):
+    entry = await _entry(hass)
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_SENSOR_GROUP),
+        context={"source": "user"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Motion confirm",
+            CONF_ENTITIES: [motion1, motion2],
+            CONF_TIMEOUT: 15,
+            CONF_EVENT_COUNT: 2,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    (subentry,) = [
+        s
+        for s in entry.subentries.values()
+        if s.subentry_type == SUBENTRY_TYPE_SENSOR_GROUP
+    ]
+    assert subentry.title == "Motion confirm"
+    assert subentry.data[CONF_ENTITIES] == [motion1, motion2]
+    assert subentry.data[CONF_TIMEOUT] == 15
+
+
+async def test_reconfigure_sensor_group(hass):
+    entry = await _entry(hass)
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+    motion3 = registry.async_get_or_create("binary_sensor", "test", "motion3").entity_id
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={
+                CONF_NAME: "Motion confirm",
+                CONF_ENTITIES: [motion1, motion2],
+                CONF_TIMEOUT: 10,
+                CONF_EVENT_COUNT: 2,
+            },
+            subentry_type=SUBENTRY_TYPE_SENSOR_GROUP,
+            title="Motion confirm",
+            unique_id=None,
+        ),
+    )
+    (subentry,) = [
+        s
+        for s in entry.subentries.values()
+        if s.subentry_type == SUBENTRY_TYPE_SENSOR_GROUP
+    ]
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Motion confirm",
+            CONF_ENTITIES: [motion1, motion2, motion3],
+            CONF_TIMEOUT: 20,
+            CONF_EVENT_COUNT: 3,
+        },
+    )
+    assert result["type"] is FlowResultType.ABORT
+
+    updated = entry.subentries[subentry.subentry_id]
+    assert updated.data[CONF_ENTITIES] == [motion1, motion2, motion3]
+    assert updated.data[CONF_EVENT_COUNT] == 3
+
+
+async def test_manage_sensors_applies_arm_on_close_and_delay_on_to_new_sensors(hass):
+    entry = await _entry(hass)
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={
+                CONF_NAME: "Home",
+                CONF_MODES: {
+                    "armed_away": {
+                        "enabled": True,
+                        "exit_time": 60,
+                        "entry_time": 30,
+                        "trigger_time": 120,
+                    },
+                    "armed_home": {"enabled": False},
+                    "armed_night": {"enabled": False},
+                    "armed_vacation": {"enabled": False},
+                    "armed_custom_bypass": {"enabled": False},
+                },
+            },
+            subentry_type=SUBENTRY_TYPE_AREA,
+            title="Home",
+            unique_id=None,
+        ),
+    )
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"next_step_id": "manage_sensors"}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"],
+            {
+                "sensors": [sensor_entity_id],
+                CONF_ARM_ON_CLOSE: True,
+                CONF_DELAY_ON: 5,
+            },
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+
+    options = sensors.async_get_sensor_options(hass, sensor_entity_id)
+    assert options[CONF_ARM_ON_CLOSE] is True
+    assert options[CONF_DELAY_ON] == 5
