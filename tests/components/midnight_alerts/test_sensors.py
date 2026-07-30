@@ -19,6 +19,10 @@ async def test_get_sensor_options_none_when_unconfigured(hass, registered_sensor
     assert sensors.async_get_sensor_options(hass, registered_sensor) is None
 
 
+async def test_get_sensor_options_none_when_entity_not_registered_at_all(hass):
+    assert sensors.async_get_sensor_options(hass, "binary_sensor.nonexistent") is None
+
+
 async def test_set_and_get_sensor_options(hass, registered_sensor):
     sensors.async_set_sensor_options(
         hass, registered_sensor, area_subentry_id="area1", always_on=True

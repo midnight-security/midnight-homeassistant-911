@@ -53,16 +53,17 @@ its own published PyPI package and depending on it via `requirements` in
 
 Tracked in `quality_scale.yaml` for completeness, but none of these block
 getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
-`entity-translations`, and `exception-translations` are now done. Still
-open, to revisit later: `reauthentication-flow` and `test-coverage`
-(Silver), `icon-translations` and `reconfiguration-flow` (Gold — the latter
-is about the top-level API-key entry, not the alarm feature's own subentry
-reconfigure flows, which already work), `strict-typing` (Platinum).
+`entity-translations`, `exception-translations`, and `test-coverage` are
+now done (99% overall — every module at 100% except `api.py`, tracked
+below under `dependency-transparency`). Still open, to revisit later:
+`reauthentication-flow` (Silver), `icon-translations` and
+`reconfiguration-flow` (Gold — the latter is about the top-level API-key
+entry, not the alarm feature's own subentry reconfigure flows, which
+already work), `strict-typing` (Platinum).
 
 ## Not today — separate coding sessions
 
-- Add test coverage for `api.py` / `__init__.py` / `button.py` (config flow is now covered, but the rest of the integration isn't — needed for the Silver `test-coverage` rule)
-- Extract `api.py` into a standalone PyPI package
+- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap)
 - Add `strict-typing` (mypy) once the above lands
 
 ## Housekeeping before the actual `home-assistant/core` PR

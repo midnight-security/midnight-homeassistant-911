@@ -77,12 +77,19 @@ rules:
     status: todo
     comment: config_flow.py only implements async_step_user today.
   test-coverage:
-    status: todo
+    status: done
     comment: >-
-      Config flow, and every alarm_control_panel/pin/sensors/alarm_state/
-      sensor_groups/alarmo_import module, have thorough test coverage.
-      api.py, __init__.py, and button.py's own logic are still untested -
-      needs >95% across all modules.
+      99% overall (pytest --cov), 787 statements / 10 missed. Every module
+      is at 100% - __init__, alarm_control_panel, alarm_state,
+      alarmo_import, button, config_flow, const, diagnostics,
+      error_reporting, pin, sensor_groups, sensors - except api.py (71%,
+      10 lines), which is the pre-existing, separately-tracked
+      dependency-transparency gap (see that entry) rather than an
+      untested code path in this integration's own logic. Coverage work
+      also caught and fixed a real bug along the way: a second, faster
+      sensor tripping mid-PENDING was silently ignored instead of
+      shortening the countdown, because the gate only recognized TRIGGERED
+      display state, not PENDING.
 
   # Gold
   devices:

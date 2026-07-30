@@ -109,6 +109,12 @@ def test_parse_import_rejects_wrong_key():
     assert alarmo_import.parse_import(raw) is None
 
 
+def test_parse_import_rejects_non_dict_data():
+    raw = _load_fixture()
+    raw["data"] = ["not", "a", "dict"]
+    assert alarmo_import.parse_import(raw) is None
+
+
 async def test_read_alarmo_storage_missing_file_returns_none(hass, tmp_path, monkeypatch):
     # hass.config.path() otherwise resolves into a *shared*, non-isolated
     # directory inside the installed pytest_homeassistant_custom_component
@@ -129,6 +135,20 @@ async def test_read_alarmo_storage_reads_real_file(hass, tmp_path, monkeypatch):
     raw = await alarmo_import.async_read_alarmo_storage(hass)
     assert raw is not None
     assert raw["key"] == "alarmo.storage"
+
+
+async def test_read_alarmo_storage_corrupt_file_returns_none(
+    hass, tmp_path, monkeypatch, caplog
+):
+    """A truncated/corrupt storage file must degrade to None, not raise."""
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    storage_dir = Path(hass.config.path(".storage"))
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    (storage_dir / "alarmo.storage").write_text("{not valid json")
+
+    raw = await alarmo_import.async_read_alarmo_storage(hass)
+    assert raw is None
+    assert "Could not read Alarmo storage" in caplog.text
 
 
 async def _entry(hass) -> MockConfigEntry:

@@ -93,6 +93,12 @@ def test_shorten_pending_pulls_deadline_in():
     assert fsm.trigger_until == original_trigger_until - timedelta(seconds=45)
 
 
+def test_shorten_pending_is_a_noop_when_not_triggered():
+    """Shortening only makes sense mid-TRIGGERED; any other state is untouched."""
+    fsm = AreaFsm(settled_state=AlarmControlPanelState.ARMED_AWAY)
+    assert shorten_pending(fsm, now=NOW, entry_delay=5) == fsm
+
+
 def test_shorten_pending_never_lengthens():
     fsm = AreaFsm(settled_state=AlarmControlPanelState.ARMED_AWAY)
     fsm = start_trigger(

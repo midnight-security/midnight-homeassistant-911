@@ -470,7 +470,11 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             return
 
         armed = display in alarm_state_lib.ARM_MODES
-        if not armed and display != AlarmControlPanelState.TRIGGERED:
+        mid_sequence = (
+            AlarmControlPanelState.PENDING,
+            AlarmControlPanelState.TRIGGERED,
+        )
+        if not armed and display not in mid_sequence:
             return  # disarmed, not always_on - ignore
 
         # Mode membership only gates *starting* a new trigger. Once already
@@ -490,7 +494,12 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 CONF_ENTRY_TIME, DEFAULT_ENTRY_TIME
             )
 
-        if display == AlarmControlPanelState.TRIGGERED:
+        if display in mid_sequence:
+            # A second sensor mid-PENDING can pull the deadline in; one that
+            # arrives after the siren has already started (display is
+            # already TRIGGERED, so pending_until is already in the past)
+            # is a safe no-op - shorten_pending never moves a deadline
+            # earlier than "now".
             self._fsm = alarm_state_lib.shorten_pending(
                 self._fsm, now=dt_util.utcnow(), entry_delay=entry_delay
             )

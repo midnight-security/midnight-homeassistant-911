@@ -54,6 +54,16 @@ async def test_empty_stored_hash_always_authenticates():
     assert pin._check_code_sync("", "") is True
 
 
+async def test_empty_code_against_a_real_hash_fails(hass):
+    hashed = await pin.async_hash_code(hass, "1234")
+    assert pin._check_code_sync("", hashed) is False
+
+
+def test_malformed_hash_is_treated_as_no_match():
+    """A corrupt/non-base64 stored hash must fail closed, not raise."""
+    assert pin._check_code_sync("1234", "not-valid-base64!!!") is False
+
+
 async def test_validate_code_no_users_configured_skips_through(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={}, subentries_data=[])
     entry.add_to_hass(hass)

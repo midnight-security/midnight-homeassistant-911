@@ -1,4 +1,5 @@
 """Tests for the area/user config subentry flows."""
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -168,6 +169,60 @@ async def test_manage_sensors_attaches_and_reloads(hass):
     assert result["reason"] == "sensors_updated"
 
     assert sensors.sensors_for_area(hass, subentry.subentry_id) == [sensor_entity_id]
+
+
+async def test_manage_sensors_detaches_previously_attached_sensor(hass):
+    entry = await _entry(hass)
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={
+                CONF_NAME: "Home",
+                CONF_MODES: {
+                    "armed_away": {
+                        "enabled": True,
+                        "exit_time": 60,
+                        "entry_time": 30,
+                        "trigger_time": 120,
+                    },
+                    "armed_home": {"enabled": False},
+                    "armed_night": {"enabled": False},
+                    "armed_vacation": {"enabled": False},
+                    "armed_custom_bypass": {"enabled": False},
+                },
+            },
+            subentry_type=SUBENTRY_TYPE_AREA,
+            title="Home",
+            unique_id=None,
+        ),
+    )
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id=subentry.subentry_id
+    )
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"next_step_id": "manage_sensors"}
+    )
+    assert result["data_schema"]({})["sensors"] == [sensor_entity_id]
+
+    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {"sensors": []}
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "sensors_updated"
+
+    assert sensors.sensors_for_area(hass, subentry.subentry_id) == []
+    assert sensors.async_get_sensor_options(hass, sensor_entity_id) is None
 
 
 async def test_add_user_hashes_code(hass):
@@ -426,6 +481,24 @@ async def test_alarmo_import_flow_no_file_aborts(hass, tmp_path, monkeypatch):
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "alarmo_not_found"
+
+
+async def test_alarmo_import_flow_version_mismatch_aborts(hass, tmp_path, monkeypatch):
+    """A storage file from an unmigrated Alarmo version must abort, not crash."""
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    entry = await _entry(hass)
+    storage_dir = Path(hass.config.path(".storage"))
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    raw = json.loads(FIXTURE_PATH.read_text())
+    raw["version"] = 5
+    (storage_dir / "alarmo.storage").write_text(json.dumps(raw))
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ALARMO_IMPORT),
+        context={"source": "user"},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "alarmo_version_mismatch"
 
 
 async def test_alarmo_import_flow_twice_reports_already_imported(hass, tmp_path, monkeypatch):
