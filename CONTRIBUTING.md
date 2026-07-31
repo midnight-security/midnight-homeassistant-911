@@ -4,8 +4,41 @@ Thank you for helping improve the Midnight 911 Home Assistant integration.
 
 ## Development setup
 
-1. Clone this repository into your Home Assistant `custom_components` path, or symlink `custom_components/midnight_alerts` into a dev instance.
-2. Restart Home Assistant and add the integration via **Settings → Devices & services**.
+1. Install dependencies into a local virtualenv. `uv.lock` pins an exact
+   Home Assistant core version, so this gives you a matching `hass` to run
+   locally:
+   ```bash
+   uv sync --group dev
+   ```
+2. Point a throwaway Home Assistant config directory at this checkout by
+   symlinking the integration in:
+   ```bash
+   mkdir -p .ha_dev_config/custom_components
+   ln -s "$(pwd)/custom_components/midnight_alerts" .ha_dev_config/custom_components/midnight_alerts
+   ```
+   `.ha_dev_config/` is gitignored, so it's safe to leave in place between
+   runs — edits to the integration are picked up on restart without
+   re-linking anything.
+3. Run Home Assistant against that config:
+   ```bash
+   .venv/bin/hass -c .ha_dev_config --debug
+   ```
+   If port 8123 is already taken on your machine, add this to
+   `.ha_dev_config/configuration.yaml` and use the new port instead:
+   ```yaml
+   http:
+     server_port: 8124
+   ```
+4. Open the printed URL, complete onboarding, then add the integration via
+   **Settings → Devices & services → Add Integration → "Midnight 911"**.
+
+Logs land in `.ha_dev_config/home-assistant.log`.
+
+## Running tests
+
+```bash
+uv run pytest
+```
 
 ## Branch workflow
 

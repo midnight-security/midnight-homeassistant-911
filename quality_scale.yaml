@@ -9,8 +9,13 @@ rules:
   brands:
     status: done
   common-modules:
-    status: todo
-    comment: Only one platform (button) exists today; revisit once more platforms are added.
+    status: done
+    comment: >-
+      Two platforms now exist (button, alarm_control_panel). Shared logic is
+      factored into standalone modules rather than duplicated or left inline
+      on the entity: pin.py (PIN hashing/verification), sensors.py
+      (entity-registry-options helpers), alarm_state.py (state-machine math),
+      sensor_groups.py (N-of-M tally), alarmo_import.py (migration parser).
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
@@ -27,27 +32,41 @@ rules:
   docs-triggers:
     status: exempt
     comment: Integration does not provide triggers.
-  docs-high-level-description: done
-  docs-installation-instructions: done
+  docs-high-level-description:
+    status: done
+    comment: >-
+      docs/midnight_alerts.markdown's intro now covers both the Trigger
+      Alert button and the native Midnight Alarm alarm_control_panel
+      platform (areas, users/PINs, sensor groups, Alarmo import) - it
+      previously only described the button.
+  docs-installation-instructions:
+    status: done
+    comment: >-
+      Covers the initial API-key config flow plus step-by-step instructions
+      for adding an area, attaching sensors, adding users, sensor groups,
+      and the Alarmo import flow.
   docs-removal-instructions: done
   entity-event-setup:
-    status: todo
+    status: done
     comment: >-
-      Needs review - the button entity has no push-based state, so this
-      may end up exempt, but not yet confirmed.
+      Neither platform polls. The button has no state to track. The alarm
+      area entity is fully event/callback-driven: async_track_state_change_event
+      for sensors, async_track_point_in_time for scheduled transitions.
   entity-unique-id: done
   has-entity-name: done
   runtime-data:
-    status: todo
-    comment: __init__.py still stores the client in hass.data[DOMAIN].
+    status: done
+    comment: __init__.py now sets entry.runtime_data; both platforms read from it.
   test-before-configure: done
   test-before-setup: done
   unique-config-entry: done
 
   # Silver
   action-exceptions:
-    status: todo
-    comment: No custom service actions exist yet to raise exceptions from.
+    status: done
+    comment: >-
+      pin.async_validate_code raises ServiceValidationError (translation_key
+      "invalid_code") for a wrong or unauthorized PIN on any arm/disarm call.
   config-entry-unloading: done
   docs-configuration-parameters:
     status: todo
@@ -57,49 +76,117 @@ rules:
     comment: docs/midnight_alerts.markdown is a draft, not yet complete.
   entity-unavailable:
     status: todo
-    comment: Needs review - button entity availability handling not yet audited.
+    comment: >-
+      Needs review - neither the button nor the alarm_control_panel
+      entities override `available`; not yet audited for either platform.
   integration-owner: done
   log-when-unavailable:
     status: todo
     comment: Needs review - not yet audited.
   parallel-updates:
-    status: todo
-    comment: Not yet specified on the button entity/platform.
+    status: done
+    comment: PARALLEL_UPDATES = 0 set on both button.py and alarm_control_panel.py.
   reauthentication-flow:
     status: todo
     comment: config_flow.py only implements async_step_user today.
   test-coverage:
-    status: todo
+    status: done
     comment: >-
-      Config flow has 100% coverage, but api.py, __init__.py, and button.py
-      are still untested. Needs >95% across all modules.
+      100% overall (pytest --cov), 789/789 statements across all 13
+      modules. api.py was previously the sole gap (71%, 10 lines) because
+      every other test patched MidnightAlertsApiClient.async_validate
+      wholesale instead of exercising _async_request itself; test_api.py
+      now drives it through aioclient_mock (BASE_URL construction, the
+      401/403 auth-error path, the non-200 path added when the API URL
+      and error-message handling were reworked, ClientError wrapping, and
+      error_reporting call args in both the enabled and default-disabled
+      cases). Earlier coverage work also caught and fixed a real bug
+      along the way: a second, faster sensor tripping mid-PENDING was
+      silently ignored instead of shortening the countdown, because the
+      gate only recognized TRIGGERED display state, not PENDING.
 
   # Gold
   devices:
     status: done
     comment: >-
-      button.py already sets device_info with entry_type=DeviceEntryType.SERVICE,
-      which is the documented pattern for a service with no physical hardware.
+      button.py's device and each alarm area's device both set
+      entry_type=DeviceEntryType.SERVICE. Each area is its own child device
+      (identifiers keyed by entry_id + subentry_id) linked back to the main
+      "Midnight 911" hub device via via_device, matching ntfy's pattern for
+      multiple subentry-scoped devices under one config entry.
   diagnostics:
-    status: todo
-    comment: Not implemented.
+    status: done
+    comment: >-
+      diagnostics.py redacts api_key and every subentry's PIN hash. Each
+      ConfigSubentry is converted via .as_dict() before redaction, since
+      async_redact_data only recurses into Mapping/list and would silently
+      skip a raw ConfigSubentry (a frozen dataclass) otherwise.
   discovery: exempt
   discovery-update-info: exempt
   docs-data-update: done
   docs-examples:
-    status: todo
+    status: done
     comment: >-
-      docs/midnight_alerts.markdown has an example automation, but the rule
-      wants a linked blueprint on the community exchange, which doesn't
-      exist yet - inline YAML isn't sufficient on its own.
-  docs-known-limitations: done
+      Five real, schema-validated blueprints now ship at
+      blueprints/automation/midnight_alerts/ (notify-on-trigger,
+      notify-on-state-change, re-arm-after-timeout,
+      auto-arm-away-when-everyone-leaves, retry-arm-on-failed-to-arm) -
+      the direct, working replacement for Alarmo's own built-in
+      notification, device-switching, and automatic-arming automation
+      features (checked against Alarmo's real README, not assumed).
+      Verified end-to-end: each loaded and validated against
+      AUTOMATION_BLUEPRINT_SCHEMA, and instantiated with real inputs to
+      confirm the resulting automation config - including the templated
+      alarm_arm_{{ rearm_mode }}/{{ retry_mode }} action names, the
+      expand()/selectattr() presence-check template, the mobile_app
+      device-notify-action shape, and the two-trigger
+      condition:-trigger/id: branching - is correct.
+      docs/midnight_alerts.markdown links all five and explains the
+      Import Blueprint flow. Not yet published to the community blueprint
+      exchange forum - importing directly by the GitHub link works today
+      without that.
+  docs-known-limitations:
+    status: done
+    comment: >-
+      Documents Alarmo-import specifics (automations counted but never
+      imported) and the manage-sensors new-vs-existing-sensor caveat.
+      always_on, per-sensor entry-delay override, mode-restriction, user
+      area-restriction, and is_override_code all gained both manual UI and
+      working behavior (previously import-only/inert); only
+      use_entry_delay (the per-sensor toggle to skip the entry delay
+      entirely) remains import-only, with no manual UI field yet.
   docs-supported-devices:
     status: exempt
     comment: Cloud service integration with no physical devices to support.
-  docs-supported-functions: done
-  docs-troubleshooting: done
-  docs-use-cases: done
-  dynamic-devices: exempt
+  docs-supported-functions:
+    status: done
+    comment: >-
+      Table now lists both entities - the Trigger Alert button and the
+      per-area Alarm Control Panel - instead of stating the button is
+      "the integration's only entity" (no longer true).
+  docs-troubleshooting:
+    status: done
+    comment: >-
+      Added PIN-rejection, sensor-not-triggering, and Alarmo-import-abort
+      troubleshooting sections alongside the existing config-flow ones.
+  docs-use-cases:
+    status: done
+    comment: >-
+      Previously framed the product as a button-only safety net
+      "without needing a dedicated alarm panel" - now also covers running
+      a full alarm system and migrating from Alarmo.
+  dynamic-devices:
+    status: todo
+    comment: >-
+      Not confidently exempt: each area subentry gets its own device,
+      added/removed live without a restart - structurally identical to
+      ntfy's per-topic-subentry devices, and ntfy's own quality_scale.yaml
+      marks this rule `todo` rather than exempt for that exact shape.
+      bosch_alarm marks it exempt, but its partitions are
+      fixed/panel-discovered at connect time, not a close match. Needs a
+      real read of the rule's intent (does user-initiated, in-app subentry
+      creation count as "dynamic," or is this only about devices a backend
+      introduces without user action?) rather than a guess.
   entity-category:
     status: done
     comment: >-
@@ -112,21 +199,45 @@ rules:
       to an alert-trigger button.
   entity-disabled-by-default: exempt
   entity-translations:
-    status: todo
-    comment: translations/en.json exists but has not been audited for completeness.
+    status: done
+    comment: >-
+      button.py now uses _attr_translation_key ("trigger_alert") instead of a
+      hardcoded _attr_name, with entity.button.trigger_alert.name in
+      translations/en.json. The alarm area entity correctly needs none -
+      _attr_name = None makes it the device's unnamed primary entity, the
+      same convention used throughout core (e.g. ntfy's own entities).
   exception-translations:
-    status: todo
-    comment: Not implemented.
+    status: done
+    comment: >-
+      pin.py's ServiceValidationError uses translation_domain=DOMAIN,
+      translation_key="invalid_code", backed by exceptions.invalid_code in
+      translations/en.json.
   icon-translations:
     status: todo
     comment: button.py uses a hardcoded _attr_icon instead of icons.json.
   reconfiguration-flow:
     status: todo
-    comment: config_flow.py only implements async_step_user today.
+    comment: >-
+      The main config flow (API key) only implements async_step_user - no
+      reconfigure step to change the key without removing and re-adding the
+      entry. Unrelated to the alarm feature's own subentries, which do have
+      working reconfigure flows (area/user/sensor_group).
   repair-issues:
     status: todo
     comment: Not implemented.
-  stale-devices: exempt
+  stale-devices:
+    status: done
+    comment: >-
+      Only "area" subentries have a device (identified by
+      f"{entry_id}_{subentry_id}"; user/sensor_group subentries are pure
+      data with no entity or device of their own, so nothing to leave
+      stale there). Removing an area subentry automatically triggers HA
+      core's own dev_reg.async_clear_config_subentry /
+      ent_reg.async_clear_config_subentry (config_entries.py's
+      async_remove_subentry), which deletes the now-orphaned device - no
+      integration-side cleanup code is needed or possible. Was marked
+      exempt when the only device was the single static button hub;
+      that's no longer the architecture.
 
   # Platinum
   async-dependency:

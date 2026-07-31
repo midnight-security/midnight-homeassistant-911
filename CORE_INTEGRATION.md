@@ -26,7 +26,7 @@ behind each requirement.
 | `has-entity-name` | Entities set `has_entity_name = True` | Done |
 | `test-before-configure` | Config flow tests the connection before creating the entry | Done |
 | `test-before-setup` | `async_setup_entry` verifies connectivity before completing setup | Done |
-| `runtime-data` | Use `ConfigEntry.runtime_data`, not `hass.data[DOMAIN]` | **Todo** |
+| `runtime-data` | Use `ConfigEntry.runtime_data`, not `hass.data[DOMAIN]` | Done |
 | `config-flow-test-coverage` | Automated tests cover the config flow | Done — `tests/components/midnight_alerts/test_config_flow.py`, 100% line coverage of `config_flow.py` |
 | `brands` | Branding assets available | Done — `custom_components/midnight_alerts/brand/` |
 | `dependency-transparency` | Third-party API code lives in a documented, pinned dependency rather than inline in the integration | **Todo** — see note below |
@@ -36,8 +36,8 @@ behind each requirement.
 | `action-setup` | Service actions registered in `async_setup` | Exempt — no custom service actions |
 | `appropriate-polling` | Sensible polling interval | Exempt — `cloud_push`, not polling |
 | `docs-actions` / `docs-triggers` / `docs-conditions` | Docs for services/triggers/conditions | Exempt — none provided |
-| `common-modules` | Shared patterns live in common modules | Needs review — only one platform today |
-| `entity-event-setup` | Entity events subscribed in correct lifecycle method | Needs review — button entity has no push-based state |
+| `common-modules` | Shared patterns live in common modules | Done — `pin.py`, `sensors.py`, `alarm_state.py`, `sensor_groups.py`, `alarmo_import.py` |
+| `entity-event-setup` | Entity events subscribed in correct lifecycle method | Done — both platforms are push/callback-driven, no polling |
 
 ### Note on `dependency-transparency`
 
@@ -52,15 +52,29 @@ its own published PyPI package and depending on it via `requirements` in
 ## Silver / Gold / Platinum — roadmap, not required for initial acceptance
 
 Tracked in `quality_scale.yaml` for completeness, but none of these block
-getting into core. Notable ones to revisit later: `reauthentication-flow`
-and `test-coverage` (Silver), `diagnostics` and `reconfiguration-flow`
-(Gold), `strict-typing` (Platinum).
+getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
+`entity-translations`, `exception-translations`, and `test-coverage` are
+done (99% overall — every module at 100% except `api.py`, tracked below
+under `dependency-transparency`). `stale-devices` and the docs-* rules
+(`docs-high-level-description`, `docs-installation-instructions`,
+`docs-supported-functions`, `docs-use-cases`, `docs-troubleshooting`,
+`docs-known-limitations`) are also done, now that `docs/midnight_alerts.markdown`
+actually documents the alarm feature (areas, users/PINs, sensor groups,
+Alarmo import) instead of only the original button.
+
+Still open, to revisit later: `reauthentication-flow` (Silver),
+`icon-translations` and `reconfiguration-flow` (Gold — the latter is about
+the top-level API-key entry, not the alarm feature's own subentry
+reconfigure flows, which already work), `strict-typing` (Platinum).
+`dynamic-devices` is flagged but not resolved — each area subentry gets
+its own device added/removed live, and real core integrations disagree on
+whether that counts as "dynamic" for this rule (see the comment in
+`quality_scale.yaml`); needs an actual read of the rule's intent rather
+than a guess.
 
 ## Not today — separate coding sessions
 
-- Migrate `__init__.py` to `entry.runtime_data`
-- Add test coverage for `api.py` / `__init__.py` / `button.py` (config flow is now covered, but the rest of the integration isn't — needed for the Silver `test-coverage` rule)
-- Extract `api.py` into a standalone PyPI package
+- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap)
 - Add `strict-typing` (mypy) once the above lands
 
 ## Housekeeping before the actual `home-assistant/core` PR
