@@ -71,7 +71,9 @@ up to date.
 ## Prerequisites
 
 1. Sign up for a [Midnight Security](https://www.midnight.security) account.
-2. Generate an API key from your Midnight Security account.
+2. Enter your home address on the Midnight Security dashboard and generate
+   an API key — the address you enter there, not anything typed into Home
+   Assistant, is what a real dispatch is sent to.
 3. Make sure Home Assistant has an active internet connection — it must be
    able to reach Midnight's API for both setup and alert delivery.
 
@@ -84,6 +86,16 @@ During setup you'll be asked for:
 | Field | Description |
 | --- | --- |
 | API Key | The API key from your Midnight Security account. |
+
+Setup also verifies that Home Assistant's own configured location (Settings
+→ System → General) is within 1000 feet of the address on file for that API
+key, and blocks completing setup if they don't match closely enough — this
+catches a key pasted into the wrong Home Assistant instance, or a stale
+`hass.config` location, before it could send a real emergency dispatch to
+the wrong place. This same check runs again every time the integration
+loads (e.g. after a restart); if Home Assistant's location drifts out of
+sync afterward, it's surfaced as a Repair (Settings → System → Repairs)
+rather than breaking the integration outright.
 
 This creates the **Midnight 911** hub and the **Trigger Alert** button.
 Everything below is optional, added afterward from the hub's own **Add**
@@ -316,6 +328,31 @@ The config flow shows a `cannot_connect` error.
 2. Check [Midnight Security's status](https://www.midnight.security) for
    any ongoing service disruption.
 3. Try again after a few minutes.
+
+#### Symptom: "This Home Assistant instance's configured location..." (`location_mismatch`)
+
+Home Assistant's own configured location (Settings → System → General) is
+more than 1000 feet from the address on file for the API key being used.
+
+##### Resolution
+
+1. If Home Assistant's configured location is wrong (e.g. it was set up
+   with default/placeholder coordinates), fix it under Settings → System →
+   General, then retry.
+2. If Home Assistant's location is actually correct, the address on file
+   for this API key is wrong or belongs to a different location - update it
+   on your midnight.security account, then retry.
+3. If this error appears later as a Repair (Settings → System → Repairs)
+   rather than during setup, it means the two were in sync at setup time but
+   have since drifted - the integration keeps working, but won't be
+   accurately located until this is resolved.
+
+#### Symptom: "No address is on file for this API key yet" (`no_account_location`)
+
+##### Resolution
+
+Finish the address/location step on your midnight.security account
+dashboard for this API key, then retry setup.
 
 ### Pressing the button doesn't seem to do anything
 

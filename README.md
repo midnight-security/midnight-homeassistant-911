@@ -21,7 +21,7 @@ HACS is required, currently.
 
 This integration works in partnership with RapidSOS and uses their service to validate 911 calls and reach the associated 911 center.
 
-It's VERY IMPORTANT you keep the address updated properly.
+It's VERY IMPORTANT you keep the address on your midnight.security account updated properly — that's the address a real dispatch is sent to, not anything configured in Home Assistant. Setup checks that Home Assistant's own configured location is within 1000 feet of that address and will refuse to continue (or raise a Repair, if it drifts out of sync later) if they don't match.
 
 ---
 

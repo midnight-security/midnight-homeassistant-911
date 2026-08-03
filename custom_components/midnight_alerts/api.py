@@ -35,15 +35,25 @@ class MidnightAlertsApiClient:
         self._report_errors = report_errors
         self._release = release
 
-    async def async_validate(self) -> None:
-        """Validate the API key, raising if it is rejected."""
-        await self._async_request("GET", "validate")
+    async def async_validate(self, *, latitude: float, longitude: float) -> dict:
+        """Validate the API key, raising if it is rejected.
+
+        Sends this Home Assistant instance's own configured location so the
+        server can check it against the address on file for the account -
+        that comparison lives entirely server-side, not in this client.
+        Returns the response body, e.g. {"valid": true, "location_match":
+        true | false | null} - null means there was nothing to compare
+        (e.g. no address on file yet).
+        """
+        return await self._async_request(
+            "GET", "validate", params={"lat": latitude, "lng": longitude}
+        )
 
     async def async_trigger_alert(self, payload: dict) -> None:
         """Trigger an alert."""
         await self._async_request("POST", "alerts", json=payload)
 
-    async def _async_request(self, method: str, path: str, **kwargs: Any) -> None:
+    async def _async_request(self, method: str, path: str, **kwargs: Any) -> dict:
         url = f"{BASE_URL}/{path}"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -72,6 +82,7 @@ class MidnightAlertsApiClient:
                     raise MidnightAlertsApiError(
                         f"{method} {path} failed with HTTP {resp.status}"
                     )
+                return await resp.json()
         except ClientError as err:
             wrapped = MidnightAlertsApiError(f"Error connecting to API: {err}")
             error_reporting.report_exception(

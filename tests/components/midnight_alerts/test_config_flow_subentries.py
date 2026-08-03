@@ -44,7 +44,7 @@ VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_
 async def _entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
@@ -168,7 +168,7 @@ async def test_manage_sensors_attaches_and_reloads(hass):
     )
     assert result["step_id"] == "manage_sensors"
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"], {"sensors": [sensor_entity_id]}
         )
@@ -221,7 +221,7 @@ async def test_manage_sensors_detaches_previously_attached_sensor(hass):
     )
     assert result["data_schema"]({})["sensors"] == [sensor_entity_id]
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"], {"sensors": []}
         )
@@ -559,7 +559,7 @@ async def test_manage_sensors_applies_arm_on_close_and_delay_on_to_new_sensors(h
         result["flow_id"], {"next_step_id": "manage_sensors"}
     )
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             {
@@ -617,7 +617,7 @@ async def test_manage_sensors_applies_always_on_entry_delay_and_modes_to_new_sen
         result["flow_id"], {"next_step_id": "manage_sensors"}
     )
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             {
@@ -657,7 +657,7 @@ async def test_manage_sensors_leaves_entry_delay_and_modes_unset_when_blank(hass
         result["flow_id"], {"next_step_id": "manage_sensors"}
     )
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"], {"sensors": [sensor_entity_id]}
         )
@@ -697,7 +697,7 @@ async def test_alarmo_import_flow_shows_preview_then_applies(hass, tmp_path, mon
     assert result["description_placeholders"]["sensors"] == "3"
     assert result["description_placeholders"]["automations_skipped"] == "2"
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"], {}
         )
@@ -753,7 +753,7 @@ async def test_alarmo_import_flow_twice_reports_already_imported(hass, tmp_path,
         )
     await hass.async_block_till_done()
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         for _ in range(2):
             result = await hass.config_entries.subentries.async_init(
                 (entry.entry_id, SUBENTRY_TYPE_ALARMO_IMPORT),

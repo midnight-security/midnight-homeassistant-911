@@ -7,12 +7,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.loader import async_get_integration
 
 from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
 from .const import CONF_ENABLE_CRASH_REPORTING, DOMAIN, CONF_API_KEY
+
+LOCATION_MISMATCH_ISSUE_ID = "location_mismatch"
 
 PLATFORMS = ["button", "alarm_control_panel"]
 
@@ -38,11 +41,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
     )
 
     try:
-        await client.async_validate()
+        result = await client.async_validate(
+            latitude=hass.config.latitude, longitude=hass.config.longitude
+        )
     except MidnightAlertsAuthError as err:
         raise ConfigEntryAuthFailed("Invalid Midnight Alerts API key") from err
     except MidnightAlertsApiError as err:
         raise ConfigEntryNotReady(f"Error connecting to Midnight Alerts: {err}") from err
+
+    # Non-blocking: a location drift after initial setup (e.g. hass.config's
+    # own location changed) shouldn't take the whole integration down - it's
+    # surfaced as a persistent repair issue instead, same as any other
+    # ongoing-but-not-fatal problem a user needs to go fix. location_match is
+    # computed server-side (single source of truth for the distance math);
+    # None means there was nothing to compare and isn't treated as a mismatch.
+    if result.get("location_match") is False:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            LOCATION_MISMATCH_ISSUE_ID,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=LOCATION_MISMATCH_ISSUE_ID,
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
 
     entry.runtime_data = MidnightAlertsData(client=client)
 

@@ -13,7 +13,7 @@ TRIGGER = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_t
 async def _setup_entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
@@ -30,6 +30,10 @@ async def test_button_press_success(hass, caplog):
             blocking=True,
         )
     mock_trigger.assert_called_once()
+    assert mock_trigger.call_args.args[0] == {
+        "lat": hass.config.latitude,
+        "lng": hass.config.longitude,
+    }
     assert "Alert successfully sent" in caplog.text
 
 

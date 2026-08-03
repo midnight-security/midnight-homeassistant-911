@@ -17,8 +17,14 @@ VALIDATE = (
 )
 
 
+def _validate_result(hass, *, matches=True):
+    """A validate() response as the server would return it - the distance
+    math itself lives server-side now, so tests just fix the outcome."""
+    return {"valid": True, "location_match": matches}
+
+
 async def test_form_user_success(hass):
-    """A valid API key creates a config entry."""
+    """A valid API key with a matching account location creates a config entry."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -26,7 +32,7 @@ async def test_form_user_success(hass):
     assert result["step_id"] == "user"
     assert result["errors"] == {}
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_API_KEY: "test-key"}
         )
@@ -35,6 +41,39 @@ async def test_form_user_success(hass):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Midnight 911"
     assert result["data"] == {CONF_API_KEY: "test-key"}
+
+
+async def test_form_location_mismatch(hass):
+    """An account location far from hass.config's own location blocks setup."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "test-key"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "location_mismatch"}
+
+
+async def test_form_no_account_location(hass):
+    """An API key with no address on file yet blocks setup with a distinct error."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    validate_result = {"valid": True, "location_match": None}
+    with patch(VALIDATE, new=AsyncMock(return_value=validate_result)):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "test-key"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "no_account_location"}
 
 
 async def test_form_invalid_auth(hass):
@@ -80,7 +119,7 @@ async def test_already_configured(hass):
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_API_KEY: "new-key"}
         )

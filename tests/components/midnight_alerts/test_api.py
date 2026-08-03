@@ -20,20 +20,27 @@ def _client(hass, **kwargs):
 
 
 async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
-    """validate() must call BASE_URL/validate with a bearer Authorization header."""
-    aioclient_mock.get(f"{BASE_URL}/validate", status=200)
+    """validate() must call BASE_URL/validate with a bearer Authorization header
+    and pass this Home Assistant instance's own lat/lng as query params, since
+    the server (not this client) does the location-match comparison."""
+    aioclient_mock.get(
+        f"{BASE_URL}/validate", status=200, json={"valid": True, "location_match": True}
+    )
 
-    await _client(hass).async_validate()
+    result = await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
+    assert result == {"valid": True, "location_match": True}
     assert aioclient_mock.call_count == 1
     _, url, _, headers = aioclient_mock.mock_calls[0]
-    assert str(url) == f"{BASE_URL}/validate"
+    assert url.path == "/functions/v1/validate"
+    assert url.query["lat"] == "1.0"
+    assert url.query["lng"] == "2.0"
     assert headers["Authorization"] == "Bearer test-key"
 
 
 async def test_async_trigger_alert_posts_json_payload(hass, aioclient_mock):
     """trigger_alert() must POST the payload to BASE_URL/alerts."""
-    aioclient_mock.post(f"{BASE_URL}/alerts", status=200)
+    aioclient_mock.post(f"{BASE_URL}/alerts", status=200, json={})
 
     await _client(hass).async_trigger_alert({"area": "home"})
 
@@ -49,7 +56,7 @@ async def test_auth_rejection_raises_auth_error(hass, aioclient_mock, status):
     aioclient_mock.get(f"{BASE_URL}/validate", status=status)
 
     with pytest.raises(MidnightAlertsAuthError, match=str(status)):
-        await _client(hass).async_validate()
+        await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
 
 async def test_non_200_error_message_excludes_response_body(hass, aioclient_mock, caplog):
@@ -63,7 +70,7 @@ async def test_non_200_error_message_excludes_response_body(hass, aioclient_mock
 
     with caplog.at_level("DEBUG"):
         with pytest.raises(MidnightAlertsApiError) as exc_info:
-            await _client(hass).async_validate()
+            await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
     assert str(exc_info.value) == "GET validate failed with HTTP 502"
     assert body not in str(exc_info.value)
@@ -75,7 +82,7 @@ async def test_connection_failure_wrapped_in_api_error(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/validate", exc=ClientConnectionError("boom"))
 
     with pytest.raises(MidnightAlertsApiError, match="Error connecting to API"):
-        await _client(hass).async_validate()
+        await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
 
 async def test_failures_reported_with_operation_and_release_when_enabled(
@@ -86,7 +93,7 @@ async def test_failures_reported_with_operation_and_release_when_enabled(
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
-            await _client(hass, report_errors=True, release="1.2.3").async_validate()
+            await _client(hass, report_errors=True, release="1.2.3").async_validate(latitude=1.0, longitude=2.0)
 
     mock_report.assert_called_once()
     _, kwargs = mock_report.call_args
@@ -101,7 +108,7 @@ async def test_failures_not_enabled_for_reporting_by_default(hass, aioclient_moc
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
-            await _client(hass).async_validate()
+            await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
     _, kwargs = mock_report.call_args
     assert kwargs["enabled"] is False
@@ -113,7 +120,7 @@ async def test_connection_failure_also_reported_when_enabled(hass, aioclient_moc
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
-            await _client(hass, report_errors=True).async_validate()
+            await _client(hass, report_errors=True).async_validate(latitude=1.0, longitude=2.0)
 
     mock_report.assert_called_once()
     _, kwargs = mock_report.call_args

@@ -63,7 +63,7 @@ async def _entry_with_user(hass) -> tuple[MockConfigEntry, str]:
         ],
     )
     entry.add_to_hass(hass)
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry, hashed

@@ -154,7 +154,7 @@ async def test_read_alarmo_storage_corrupt_file_returns_none(
 async def _entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
@@ -169,7 +169,7 @@ async def test_apply_import_creates_subentries_and_sensor_options(hass):
     await hass.async_block_till_done()
 
     plan = alarmo_import.parse_import(_load_fixture())
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         summary = await alarmo_import.async_apply_import(hass, entry, plan)
         await hass.async_block_till_done()
 
@@ -196,7 +196,7 @@ async def test_apply_import_reports_missing_entities(hass):
     # existing in this HA instance
     plan = alarmo_import.parse_import(_load_fixture())
 
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         summary = await alarmo_import.async_apply_import(hass, entry, plan)
         await hass.async_block_till_done()
 
@@ -216,7 +216,7 @@ async def test_apply_import_twice_is_a_safe_no_op(hass):
     await hass.async_block_till_done()
 
     plan = alarmo_import.parse_import(_load_fixture())
-    with patch(VALIDATE, new=AsyncMock(return_value=None)):
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
         first = await alarmo_import.async_apply_import(hass, entry, plan)
         await hass.async_block_till_done()
         second = await alarmo_import.async_apply_import(hass, entry, plan)

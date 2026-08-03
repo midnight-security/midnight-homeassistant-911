@@ -46,17 +46,8 @@ class MidnightAlertButton(ButtonEntity):
     async def async_press(self) -> None:
         """Trigger the alert when button is pressed."""
         payload = {
-          "address": {
-            "city": "New York",
-            "country": "US",
-            "name": "NY",
-            "postal_code": "10023",
-            "state": "NY",
-            "street_1": "3 Park Ave"
-          },
-          "lat": 40.7128,
-          "lng": -74.006,
-          "name": "NYC School"
+            "lat": self.hass.config.latitude,
+            "lng": self.hass.config.longitude,
         }
 
         try:

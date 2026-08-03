@@ -16,7 +16,9 @@
     },
     "error": {
       "invalid_auth": "Invalid API key",
-      "cannot_connect": "Failed to connect to Midnight Alerts"
+      "cannot_connect": "Failed to connect to Midnight Alerts",
+      "location_mismatch": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for this API key. Fix Home Assistant's location (Settings > System > General) or the address on your midnight.security account, then try again.",
+      "no_account_location": "No address is on file for this API key yet - finish setup at midnight.security before continuing."
     },
     "abort": {
       "already_configured": "Device is already configured"
@@ -214,6 +216,12 @@
   "exceptions": {
     "invalid_code": {
       "message": "Invalid or unauthorized code"
+    }
+  },
+  "issues": {
+    "location_mismatch": {
+      "title": "Home Assistant's location doesn't match the address on file",
+      "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under Settings > System > General, or update the address on your midnight.security account, then reload this integration."
     }
   }
 }

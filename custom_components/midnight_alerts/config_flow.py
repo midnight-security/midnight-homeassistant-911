@@ -79,15 +79,29 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input[CONF_API_KEY], async_get_clientsession(self.hass)
             )
             try:
-                await client.async_validate()
+                result = await client.async_validate(
+                    latitude=self.hass.config.latitude,
+                    longitude=self.hass.config.longitude,
+                )
             except MidnightAlertsAuthError:
                 errors["base"] = "invalid_auth"
             except MidnightAlertsApiError:
                 errors["base"] = "cannot_connect"
             else:
-                await self.async_set_unique_id(DOMAIN)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(title="Midnight 911", data=user_input)
+                # location_match is computed server-side (single source of
+                # truth for the distance math): True/False is a real
+                # comparison, None means no address is on file yet.
+                location_match = result.get("location_match")
+                if location_match is None:
+                    errors["base"] = "no_account_location"
+                elif location_match is False:
+                    errors["base"] = "location_mismatch"
+                else:
+                    await self.async_set_unique_id(DOMAIN)
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title="Midnight 911", data=user_input
+                    )
 
         return self.async_show_form(
             step_id="user",
