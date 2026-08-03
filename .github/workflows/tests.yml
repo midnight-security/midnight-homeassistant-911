@@ -24,7 +24,7 @@ jobs:
 
       - name: Run tests
         run: >
-          pytest tests/ -q
+          python -m pytest tests/ -q
           --cov=custom_components.midnight_alerts
           --cov-report=term-missing
           --cov-fail-under=100
