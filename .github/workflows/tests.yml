@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.3.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_test.txt
+          pip install sentry-sdk==2.66.1 bcrypt==4.3.0
+
+      - name: Run tests
+        run: >
+          pytest tests/ -q
+          --cov=custom_components.midnight_alerts
+          --cov-report=term-missing
+          --cov-fail-under=100
