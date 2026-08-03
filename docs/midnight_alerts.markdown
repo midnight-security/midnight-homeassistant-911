@@ -97,10 +97,25 @@ loads (e.g. after a restart); if Home Assistant's location drifts out of
 sync afterward, it's surfaced as a Repair (Settings → System → Repairs)
 rather than breaking the integration outright.
 
+If the stored API key stops validating later (revoked, rotated, etc.),
+Home Assistant automatically prompts for a new one - via a
+"Reauthenticate" notification on the integration's card, no need to
+remove and re-add it. The new key goes through the same location check
+described above.
+
 This creates the **Midnight 911** hub and the **Trigger Alert** button.
 Everything below is optional, added afterward from the hub's own **Add**
 menu (Settings → Devices & services → Midnight 911 → Add), and takes effect
 immediately with no restart required.
+
+### Configuration options
+
+Settings → Devices & services → Midnight 911 → **Configure** opens one
+option, changeable any time without removing the integration:
+
+| Field | Description |
+| --- | --- |
+| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. |
 
 ### Adding an alarm area
 

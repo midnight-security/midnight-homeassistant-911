@@ -126,3 +126,47 @@ async def test_already_configured(hass):
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_reauth_success_updates_existing_entry(hass):
+    """A working new key completes reauth and updates the existing entry in place."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old-key"}
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "new-key"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data == {CONF_API_KEY: "new-key"}
+    # still the same entry, not a duplicate second one
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_reauth_still_invalid_shows_form_again(hass):
+    """A still-bad key during reauth re-shows the form instead of aborting."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old-key"}
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with patch(VALIDATE, new=AsyncMock(side_effect=MidnightAlertsAuthError("bad key"))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "still-wrong"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert entry.data == {CONF_API_KEY: "old-key"}

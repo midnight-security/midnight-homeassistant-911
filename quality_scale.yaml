@@ -75,11 +75,16 @@ rules:
       "invalid_code") for a wrong or unauthorized PIN on any arm/disarm call.
   config-entry-unloading: done
   docs-configuration-parameters:
-    status: todo
-    comment: docs/midnight_alerts.markdown is a draft, not yet complete.
+    status: done
+    comment: >-
+      docs/midnight_alerts.markdown's new "Configuration options" section
+      documents the one options-flow field (enable_crash_reporting).
   docs-installation-parameters:
-    status: todo
-    comment: docs/midnight_alerts.markdown is a draft, not yet complete.
+    status: done
+    comment: >-
+      docs/midnight_alerts.markdown's Configuration section documents the
+      config flow's required field (API Key) and the location-verification
+      check performed at setup.
   entity-unavailable:
     status: todo
     comment: >-
@@ -93,12 +98,20 @@ rules:
     status: done
     comment: PARALLEL_UPDATES = 0 set on both button.py and alarm_control_panel.py.
   reauthentication-flow:
-    status: todo
-    comment: config_flow.py only implements async_step_user today.
+    status: done
+    comment: >-
+      MidnightAlertsConfigFlow.async_step_reauth delegates to
+      async_step_user itself (same single-field form, same location
+      check), branching only at the end on self.source ==
+      config_entries.SOURCE_REAUTH to call async_update_reload_and_abort
+      instead of async_create_entry - the openexchangerates pattern.
+      __init__.py already raised ConfigEntryAuthFailed on an invalid key,
+      which is what triggers HA core's automatic reauth prompt; this was
+      the only missing piece.
   test-coverage:
     status: done
     comment: >-
-      100% overall (pytest --cov), 789/789 statements across all 13
+      100% overall (pytest --cov), 881/881 statements across all 13
       modules. api.py was previously the sole gap (71%, 10 lines) because
       every other test patched MidnightAlertsApiClient.async_validate
       wholesale instead of exercising _async_request itself; test_api.py
@@ -232,8 +245,15 @@ rules:
       entry. Unrelated to the alarm feature's own subentries, which do have
       working reconfigure flows (area/user/sensor_group).
   repair-issues:
-    status: todo
-    comment: Not implemented.
+    status: done
+    comment: >-
+      __init__.py raises a "location_mismatch" repair issue (is_fixable
+      False, severity ERROR) whenever this Home Assistant instance's own
+      configured location drifts more than 1000 feet from the address on
+      file for the API key, checked on every entry load - and clears it
+      automatically once fixed. The initial config flow blocks setup
+      outright on the same mismatch; the repair issue is specifically for
+      catching drift *after* a working setup.
   stale-devices:
     status: done
     comment: >-

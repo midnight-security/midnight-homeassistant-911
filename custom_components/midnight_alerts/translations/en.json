@@ -21,7 +21,8 @@
       "no_account_location": "No address is on file for this API key yet - finish setup at midnight.security before continuing."
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful"
     }
   },
   "options": {

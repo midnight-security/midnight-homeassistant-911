@@ -53,19 +53,23 @@ its own published PyPI package and depending on it via `requirements` in
 
 Tracked in `quality_scale.yaml` for completeness, but none of these block
 getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
-`entity-translations`, `exception-translations`, and `test-coverage` are
-done (99% overall — every module at 100% except `api.py`, tracked below
-under `dependency-transparency`). `stale-devices` and the docs-* rules
-(`docs-high-level-description`, `docs-installation-instructions`,
+`entity-translations`, `exception-translations`, `test-coverage` (100%
+overall), `repair-issues` (the "location_mismatch" repair issue), and
+`reauthentication-flow` (`async_step_reauth` delegates to `async_step_user`,
+the openexchangerates pattern) are done. `stale-devices` and the docs-*
+rules (`docs-high-level-description`, `docs-installation-instructions`,
+`docs-installation-parameters`, `docs-configuration-parameters`,
 `docs-supported-functions`, `docs-use-cases`, `docs-troubleshooting`,
-`docs-known-limitations`) are also done, now that `docs/midnight_alerts.markdown`
-actually documents the alarm feature (areas, users/PINs, sensor groups,
-Alarmo import) instead of only the original button.
+`docs-known-limitations`) are also done, now that
+`docs/midnight_alerts.markdown` actually documents the alarm feature
+(areas, users/PINs, sensor groups, Alarmo import, the
+location-verification check, and the crash-reporting option) instead of
+only the original button.
 
-Still open, to revisit later: `reauthentication-flow` (Silver),
-`icon-translations` and `reconfiguration-flow` (Gold — the latter is about
-the top-level API-key entry, not the alarm feature's own subentry
-reconfigure flows, which already work), `strict-typing` (Platinum).
+Still open, to revisit later: `icon-translations` and
+`reconfiguration-flow` (Gold — the latter is about the top-level API-key
+entry, not the alarm feature's own subentry reconfigure flows, which
+already work), `strict-typing` (Platinum).
 `dynamic-devices` is flagged but not resolved — each area subentry gets
 its own device added/removed live, and real core integrations disagree on
 whether that counts as "dynamic" for this rule (see the comment in

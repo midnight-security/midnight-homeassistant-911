@@ -71,7 +71,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step - also reused for reauth (see async_step_reauth)."""
         errors = {}
 
         if user_input is not None:
@@ -96,6 +96,10 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "no_account_location"
                 elif location_match is False:
                     errors["base"] = "location_mismatch"
+                elif self.source == config_entries.SOURCE_REAUTH:
+                    return self.async_update_reload_and_abort(
+                        self._get_reauth_entry(), data_updates=user_input
+                    )
                 else:
                     await self.async_set_unique_id(DOMAIN)
                     self._abort_if_unique_id_configured()
@@ -108,6 +112,16 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=DATA_SCHEMA,
             errors=errors,
         )
+
+    async def async_step_reauth(self, entry_data) -> FlowResult:
+        """Handle reauth when the stored API key stops validating.
+
+        Home Assistant core triggers this automatically whenever
+        async_setup_entry raises ConfigEntryAuthFailed - reuses
+        async_step_user's form/validation as-is (single api_key field,
+        same location check), branching only at the end on self.source.
+        """
+        return await self.async_step_user()
 
     @staticmethod
     @callback
