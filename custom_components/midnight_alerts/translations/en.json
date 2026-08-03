@@ -128,6 +128,10 @@
         },
         "weights": {
           "title": "Set member weights",
+          "data": {
+            "decay_per_minute": "Decay per minute",
+            "threshold": "Confirmation threshold"
+          },
           "data_description": {
             "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
             "threshold": "The alarm confirms once the running weighted score crosses this value"
@@ -135,6 +139,10 @@
         },
         "reconfigure_weights": {
           "title": "Set member weights",
+          "data": {
+            "decay_per_minute": "Decay per minute",
+            "threshold": "Confirmation threshold"
+          },
           "data_description": {
             "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
             "threshold": "The alarm confirms once the running weighted score crosses this value"
