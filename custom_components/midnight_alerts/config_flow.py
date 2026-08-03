@@ -26,6 +26,7 @@ from .const import (
     CONF_CAN_ARM,
     CONF_CAN_DISARM,
     CONF_CODE,
+    CONF_DECAY_PER_MINUTE,
     CONF_DELAY_ON,
     CONF_ENABLE_CRASH_REPORTING,
     CONF_ENABLED,
@@ -33,18 +34,26 @@ from .const import (
     CONF_ENTRY_TIME,
     CONF_EVENT_COUNT,
     CONF_EXIT_TIME,
+    CONF_GROUP_MODE,
     CONF_IS_OVERRIDE_CODE,
     CONF_MODES,
     CONF_NAME,
     CONF_SENSOR_ENTRY_DELAY,
+    CONF_THRESHOLD,
     CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
+    CONF_WEIGHTS,
+    DEFAULT_DECAY_PER_MINUTE,
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
     DEFAULT_SENSOR_GROUP_EVENT_COUNT,
     DEFAULT_SENSOR_GROUP_TIMEOUT,
+    DEFAULT_THRESHOLD,
     DEFAULT_TRIGGER_TIME,
+    DEFAULT_WEIGHT,
     DOMAIN,
+    MODE_COUNT_WINDOW,
+    MODE_WEIGHTED_DECAY,
     SUBENTRY_TYPE_ALARMO_IMPORT,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
@@ -413,6 +422,10 @@ class UserSubentryFlowHandler(ConfigSubentryFlow):
         )
 
 
+_GROUP_MODE_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(options=[MODE_COUNT_WINDOW, MODE_WEIGHTED_DECAY])
+)
+
 SENSOR_GROUP_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): str,
@@ -425,8 +438,34 @@ SENSOR_GROUP_SCHEMA = vol.Schema(
         vol.Required(
             CONF_EVENT_COUNT, default=DEFAULT_SENSOR_GROUP_EVENT_COUNT
         ): vol.Coerce(int),
+        vol.Optional(CONF_GROUP_MODE, default=MODE_COUNT_WINDOW): _GROUP_MODE_SELECTOR,
     }
 )
+
+
+def _weights_schema(entities: list[str]) -> vol.Schema:
+    """Build a decay/threshold/per-member-weight form from the chosen members."""
+    fields: dict[Any, Any] = {
+        vol.Optional(
+            CONF_DECAY_PER_MINUTE, default=DEFAULT_DECAY_PER_MINUTE
+        ): vol.Coerce(float),
+        vol.Optional(CONF_THRESHOLD, default=DEFAULT_THRESHOLD): vol.Coerce(float),
+    }
+    for entity_id in entities:
+        fields[vol.Optional(entity_id, default=DEFAULT_WEIGHT)] = vol.Coerce(float)
+    return vol.Schema(fields)
+
+
+def _weighted_group_data(
+    pending_data: dict[str, Any], user_input: dict[str, Any]
+) -> dict[str, Any]:
+    entities = pending_data[CONF_ENTITIES]
+    return {
+        **pending_data,
+        CONF_DECAY_PER_MINUTE: user_input[CONF_DECAY_PER_MINUTE],
+        CONF_THRESHOLD: user_input[CONF_THRESHOLD],
+        CONF_WEIGHTS: {entity_id: user_input[entity_id] for entity_id in entities},
+    }
 
 
 class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
@@ -437,18 +476,41 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
     to the relevant area via the area's "manage sensors" step, or the area
     entity never subscribes to its state changes in the first place and the
     group can never see it trip.
+
+    Two confirmation modes: the default `count_window` needs no more than
+    this one form. Opting into `weighted_decay` adds a second "weights" step
+    (built from the members just chosen) to set a per-sensor weight, a decay
+    rate, and a confirmation threshold.
     """
+
+    _pending_data: dict[str, Any]
+    _pending_subentry: ConfigSubentry | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Create a new sensor group."""
         if user_input is not None:
+            if user_input.get(CONF_GROUP_MODE) == MODE_WEIGHTED_DECAY:
+                self._pending_data = user_input
+                return await self.async_step_weights()
             return self.async_create_entry(
                 title=user_input[CONF_NAME], data=user_input
             )
         return self.async_show_form(
             step_id="user", data_schema=SENSOR_GROUP_SCHEMA
+        )
+
+    async def async_step_weights(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Second step for a weighted_decay group: per-member weight + decay/threshold."""
+        entities = self._pending_data[CONF_ENTITIES]
+        if user_input is not None:
+            data = _weighted_group_data(self._pending_data, user_input)
+            return self.async_create_entry(title=data[CONF_NAME], data=data)
+        return self.async_show_form(
+            step_id="weights", data_schema=_weights_schema(entities)
         )
 
     async def async_step_reconfigure(
@@ -457,6 +519,10 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
         """Reconfigure an existing sensor group."""
         subentry = self._get_reconfigure_subentry()
         if user_input is not None:
+            if user_input.get(CONF_GROUP_MODE) == MODE_WEIGHTED_DECAY:
+                self._pending_data = user_input
+                self._pending_subentry = subentry
+                return await self.async_step_reconfigure_weights()
             return self.async_update_and_abort(
                 self._get_entry(),
                 subentry,
@@ -467,6 +533,34 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
                 SENSOR_GROUP_SCHEMA, subentry.data
+            ),
+        )
+
+    async def async_step_reconfigure_weights(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Second reconfigure step for a weighted_decay group."""
+        subentry = self._pending_subentry
+        entities = self._pending_data[CONF_ENTITIES]
+        if user_input is not None:
+            data = _weighted_group_data(self._pending_data, user_input)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                subentry,
+                title=data[CONF_NAME],
+                data_updates=data,
+            )
+        suggested = {
+            **subentry.data.get(CONF_WEIGHTS, {}),
+            CONF_DECAY_PER_MINUTE: subentry.data.get(
+                CONF_DECAY_PER_MINUTE, DEFAULT_DECAY_PER_MINUTE
+            ),
+            CONF_THRESHOLD: subentry.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD),
+        }
+        return self.async_show_form(
+            step_id="reconfigure_weights",
+            data_schema=self.add_suggested_values_to_schema(
+                _weights_schema(entities), suggested
             ),
         )
 

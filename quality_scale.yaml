@@ -8,6 +8,12 @@ rules:
     comment: iot_class is cloud_push; the integration does not poll.
   brands:
     status: done
+    comment: >-
+      custom_components/midnight_alerts/brand/ (icon/logo, dark variants,
+      @2x) - read directly by HA Core 2026.3.0+ per the Brands Proxy API,
+      no manifest key needed. Requires 2026.3.0+ to actually render; won't
+      show on older cores (e.g. this repo's dev instance, pinned below
+      that version, shows no logo - not a bug in the integration).
   common-modules:
     status: done
     comment: >-
@@ -154,7 +160,10 @@ rules:
       area-restriction, and is_override_code all gained both manual UI and
       working behavior (previously import-only/inert); only
       use_entry_delay (the per-sensor toggle to skip the entry delay
-      entirely) remains import-only, with no manual UI field yet.
+      entirely) remains import-only, with no manual UI field yet. The new
+      weighted/decaying sensor-group confirmation mode's score, like the
+      existing count-window tally, doesn't survive a Home Assistant
+      restart - both are documented as starting fresh after one.
   docs-supported-devices:
     status: exempt
     comment: Cloud service integration with no physical devices to support.

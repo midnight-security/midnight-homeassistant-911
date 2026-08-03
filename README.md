@@ -13,6 +13,8 @@ HACS is required, currently.
 
 > **Note:** This integration is currently available in the United States only, with plans to expand to Canada.
 
+> **Roadmap:** This is a HACS-distributed custom integration today. We're working toward eventual inclusion in Home Assistant Core — see [`CORE_INTEGRATION.md`](CORE_INTEGRATION.md) for that checklist.
+
 ---
 
 ## How it Works

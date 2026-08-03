@@ -39,30 +39,39 @@ from homeassistant.util import dt as dt_util
 
 from . import pin, sensors
 from . import alarm_state as alarm_state_lib
-from .sensor_groups import GroupTally, is_confirmed
+from .sensor_groups import GroupScore, GroupTally, is_confirmed, is_score_confirmed
 from .const import (
     CONF_ALWAYS_ON,
     CONF_ARM_ON_CLOSE,
+    CONF_DECAY_PER_MINUTE,
     CONF_DELAY_ON,
     CONF_ENABLED,
     CONF_ENTITIES,
     CONF_ENTRY_TIME,
     CONF_EVENT_COUNT,
     CONF_EXIT_TIME,
+    CONF_GROUP_MODE,
     CONF_MODES,
     CONF_SENSOR_ENTRY_DELAY,
+    CONF_THRESHOLD,
     CONF_TIMEOUT,
     CONF_TRIGGER_TIME,
     CONF_USE_ENTRY_DELAY,
     CONF_USE_EXIT_DELAY,
+    CONF_WEIGHTS,
+    DEFAULT_DECAY_PER_MINUTE,
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
     DEFAULT_SENSOR_GROUP_EVENT_COUNT,
     DEFAULT_SENSOR_GROUP_TIMEOUT,
+    DEFAULT_THRESHOLD,
     DEFAULT_TRIGGER_TIME,
+    DEFAULT_WEIGHT,
     DOMAIN,
     EVENT_ARM_FAILED,
+    MODE_COUNT_WINDOW,
     MODE_TO_FEATURE,
+    MODE_WEIGHTED_DECAY,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
 )
@@ -154,6 +163,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self._unsub_callbacks: list[CALLBACK_TYPE] = []
         self._delay_on_unsub: dict[str, CALLBACK_TYPE] = {}
         self._group_tallies: dict[str, GroupTally] = {}
+        self._group_scores: dict[str, GroupScore] = {}
 
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = DeviceInfo(
@@ -428,9 +438,11 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         """Whether this sensor's trip counts as a real event right now.
 
         A sensor not in any group is ungated (matches Phase 1 behavior). A
-        grouped sensor's trip only counts once `event_count` of its group's
-        members have tripped within `timeout` seconds of each other -
-        filtering out e.g. a single pet-triggered motion sensor.
+        grouped sensor's trip only counts once its group confirms it - either
+        `event_count` members tripping within `timeout` seconds of each other
+        (the default `count_window` mode), or a weighted, decaying score
+        crossing a threshold (opt-in `weighted_decay` mode) - filtering out
+        e.g. a single pet-triggered motion sensor.
         """
         groups = self._groups_for_sensor(entity_id)
         if not groups:
@@ -438,6 +450,11 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
         confirmed = False
         for group in groups:
+            if group.data.get(CONF_GROUP_MODE, MODE_COUNT_WINDOW) == MODE_WEIGHTED_DECAY:
+                if self._group_score_confirmed(group, entity_id, now):
+                    confirmed = True
+                continue
+
             tally = self._group_tallies.get(group.subentry_id, GroupTally())
             tally = tally.record_trip(entity_id, now)
             self._group_tallies[group.subentry_id] = tally
@@ -451,6 +468,23 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             ):
                 confirmed = True
         return confirmed
+
+    def _group_score_confirmed(
+        self, group: ConfigSubentry, entity_id: str, now: datetime
+    ) -> bool:
+        score = self._group_scores.get(group.subentry_id, GroupScore())
+        weight = group.data.get(CONF_WEIGHTS, {}).get(entity_id, DEFAULT_WEIGHT)
+        score = score.record_trip(
+            weight=weight,
+            decay_per_minute=group.data.get(
+                CONF_DECAY_PER_MINUTE, DEFAULT_DECAY_PER_MINUTE
+            ),
+            now=now,
+        )
+        self._group_scores[group.subentry_id] = score
+        return is_score_confirmed(
+            score, threshold=group.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
+        )
 
     def _async_process_open_sensor(self, entity_id: str, options: dict[str, Any]) -> None:
         display = self.alarm_state  # also runs any pending auto-revert derivation

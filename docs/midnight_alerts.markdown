@@ -16,12 +16,16 @@ ha_platforms:
 ha_integration_type: service
 ---
 
-> **DRAFT** — this file is a working draft of the documentation that will be
-> submitted to [home-assistant/home-assistant.io](https://github.com/home-assistant/home-assistant.io)
-> once the integration meets Bronze tier and moves toward Home Assistant
-> Core. See [`CORE_INTEGRATION.md`](../CORE_INTEGRATION.md) for the full
-> checklist. Front matter fields (`ha_release`, etc.) will need updating at
-> submission time to match whatever's actually true then.
+> **DRAFT — not a Core integration today.** This integration is currently
+> distributed only via HACS; see the main [README](../README.md) for how to
+> install it. This file is written in the format Home Assistant Core's own
+> docs use (front matter, section layout) because it's a working draft of
+> the documentation that would be submitted to
+> [home-assistant/home-assistant.io](https://github.com/home-assistant/home-assistant.io)
+> if and when the integration moves into Home Assistant Core - see
+> [`CORE_INTEGRATION.md`](../CORE_INTEGRATION.md) for that roadmap. Front
+> matter fields (`ha_release`, etc.) will need updating at submission time
+> to match whatever's actually true then.
 
 The **Midnight 911** integration connects Home Assistant to
 [Midnight Security](https://www.midnight.security), a professional security
@@ -146,10 +150,30 @@ room.
 | Member sensors | The sensors this group cross-checks. |
 | Confirmation window (seconds) | How far apart member trips can be and still count together. |
 | Sensors required to confirm | How many members must trip within the window. |
+| Confirmation mode | **Count window** (the default, above) or **Weighted decay** (below). |
 
 Grouping a sensor here doesn't attach it to an area — each member also
 needs to be individually attached via that area's **Manage sensors** step,
 same as any other sensor.
+
+#### Weighted/decaying confirmation
+
+Pick **Weighted decay** as the confirmation mode for a second step where
+each member gets its own weight instead of every sensor counting equally.
+A trip adds that sensor's weight to a running score; the score decays over
+time; the group confirms once the score crosses a threshold. This suits a
+mix of sensors with different reliability - e.g. a window sensor weighted
+higher than a pet-prone motion sensor - where a strict N-of-M count either
+under- or over-reacts.
+
+| Field | Description |
+| --- | --- |
+| Per-member weight | How much one trip from this sensor adds to the group's score. |
+| Decay per minute | How much the score drops per minute since the last trip. |
+| Threshold | The score needed to confirm - crossing it counts as one confirmed event. |
+
+The score isn't persisted across a Home Assistant restart, the same as the
+count-window mode's tally - both start fresh after a restart.
 
 ### Importing from Alarmo
 

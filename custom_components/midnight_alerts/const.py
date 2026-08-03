@@ -38,6 +38,13 @@ CONF_AREA_LIMIT: Final = "area_limit"
 CONF_ENTITIES: Final = "entities"
 CONF_TIMEOUT: Final = "timeout"
 CONF_EVENT_COUNT: Final = "event_count"
+CONF_GROUP_MODE: Final = "mode"
+CONF_DECAY_PER_MINUTE: Final = "decay_per_minute"
+CONF_THRESHOLD: Final = "threshold"
+CONF_WEIGHTS: Final = "weights"
+
+MODE_COUNT_WINDOW: Final = "count_window"
+MODE_WEIGHTED_DECAY: Final = "weighted_decay"
 
 # per-sensor entity-registry option keys (options[DOMAIN][...] on the sensor entity)
 CONF_AREA_SUBENTRY_ID: Final = "area_subentry_id"
@@ -60,6 +67,9 @@ DEFAULT_ENTRY_TIME: Final = 60
 DEFAULT_TRIGGER_TIME: Final = 1800
 DEFAULT_SENSOR_GROUP_TIMEOUT: Final = 10
 DEFAULT_SENSOR_GROUP_EVENT_COUNT: Final = 2
+DEFAULT_DECAY_PER_MINUTE: Final = 1.0
+DEFAULT_THRESHOLD: Final = 10.0
+DEFAULT_WEIGHT: Final = 5.0
 
 ARM_MODES: Final = (
     AlarmControlPanelState.ARMED_AWAY,

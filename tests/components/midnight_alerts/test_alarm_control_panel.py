@@ -25,13 +25,18 @@ from custom_components.midnight_alerts.alarm_control_panel import (
 from custom_components.midnight_alerts.alarm_state import AreaFsm
 from custom_components.midnight_alerts.const import (
     CONF_API_KEY,
+    CONF_DECAY_PER_MINUTE,
     CONF_ENTITIES,
     CONF_EVENT_COUNT,
+    CONF_GROUP_MODE,
     CONF_MODES,
     CONF_NAME,
+    CONF_THRESHOLD,
     CONF_TIMEOUT,
+    CONF_WEIGHTS,
     DOMAIN,
     EVENT_ARM_FAILED,
+    MODE_WEIGHTED_DECAY,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
@@ -77,19 +82,33 @@ def _area_subentry(
 
 
 def _sensor_group_subentry(
-    subentry_id: str, *, entities: list[str], timeout: int = 10, event_count: int = 2
+    subentry_id: str,
+    *,
+    entities: list[str],
+    timeout: int = 10,
+    event_count: int = 2,
+    mode: str | None = None,
+    weights: dict[str, float] | None = None,
+    decay_per_minute: float = 1,
+    threshold: float = 10,
 ) -> dict:
+    data = {
+        CONF_NAME: "Group",
+        CONF_ENTITIES: entities,
+        CONF_TIMEOUT: timeout,
+        CONF_EVENT_COUNT: event_count,
+    }
+    if mode is not None:
+        data[CONF_GROUP_MODE] = mode
+        data[CONF_WEIGHTS] = weights or {}
+        data[CONF_DECAY_PER_MINUTE] = decay_per_minute
+        data[CONF_THRESHOLD] = threshold
     return {
         "subentry_id": subentry_id,
         "subentry_type": SUBENTRY_TYPE_SENSOR_GROUP,
         "title": "Group",
         "unique_id": None,
-        "data": {
-            CONF_NAME: "Group",
-            CONF_ENTITIES: entities,
-            CONF_TIMEOUT: timeout,
-            CONF_EVENT_COUNT: event_count,
-        },
+        "data": data,
     }
 
 
@@ -540,6 +559,123 @@ async def test_sensor_group_trips_outside_timeout_dont_confirm(hass, freezer):
     hass.states.async_set(motion2, "on")
     await hass.async_block_till_done()
     # motion1's trip is now outside the 5s window - still not confirmed
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_HOME
+
+
+async def test_weighted_group_single_high_weight_sensor_confirms_alone(hass):
+    registry = er.async_get(hass)
+    window = registry.async_get_or_create("binary_sensor", "test", "window").entity_id
+    hass.states.async_set(window, "off")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(hass, window, area_subentry_id="area1")
+
+    await _setup_entry(
+        hass,
+        subentries_data=[
+            _area_subentry("area1"),
+            _sensor_group_subentry(
+                "group1",
+                entities=[window],
+                mode=MODE_WEIGHTED_DECAY,
+                weights={window: 15},
+                threshold=10,
+            ),
+        ],
+    )
+    entity_id = _find_entity_id(hass, "area1")
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+
+    hass.states.async_set(window, "on")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.PENDING
+
+
+async def test_weighted_group_two_low_weight_sensors_combine_to_confirm(hass, freezer):
+    # freeze time so decay between the two trips doesn't shave the combined
+    # weight (5+5=10, exactly the threshold) below the boundary
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+    for entity_id in (motion1, motion2):
+        hass.states.async_set(entity_id, "off")
+    await hass.async_block_till_done()
+    for entity_id in (motion1, motion2):
+        sensors.async_set_sensor_options(hass, entity_id, area_subentry_id="area1")
+
+    await _setup_entry(
+        hass,
+        subentries_data=[
+            _area_subentry("area1"),
+            _sensor_group_subentry(
+                "group1",
+                entities=[motion1, motion2],
+                mode=MODE_WEIGHTED_DECAY,
+                weights={motion1: 5, motion2: 5},
+                threshold=10,
+            ),
+        ],
+    )
+    entity_id = _find_entity_id(hass, "area1")
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+
+    hass.states.async_set(motion1, "on")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_HOME
+
+    hass.states.async_set(motion2, "on")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.PENDING
+
+
+async def test_weighted_group_score_decays_out_before_second_trip(hass, freezer):
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+    for entity_id in (motion1, motion2):
+        hass.states.async_set(entity_id, "off")
+    await hass.async_block_till_done()
+    for entity_id in (motion1, motion2):
+        sensors.async_set_sensor_options(hass, entity_id, area_subentry_id="area1")
+
+    await _setup_entry(
+        hass,
+        subentries_data=[
+            _area_subentry("area1"),
+            _sensor_group_subentry(
+                "group1",
+                entities=[motion1, motion2],
+                mode=MODE_WEIGHTED_DECAY,
+                weights={motion1: 5, motion2: 5},
+                decay_per_minute=1,
+                threshold=10,
+            ),
+        ],
+    )
+    entity_id = _find_entity_id(hass, "area1")
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+
+    hass.states.async_set(motion1, "on")
+    await hass.async_block_till_done()
+
+    # 10 minutes later motion1's contribution has fully decayed away
+    freezer.move_to(dt_util.utcnow() + timedelta(minutes=10))
+    hass.states.async_set(motion2, "on")
+    await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_HOME
 
 

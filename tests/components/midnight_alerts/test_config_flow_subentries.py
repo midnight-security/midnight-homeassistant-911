@@ -15,14 +15,19 @@ from custom_components.midnight_alerts.const import (
     CONF_AREA_LIMIT,
     CONF_ARM_ON_CLOSE,
     CONF_CODE,
+    CONF_DECAY_PER_MINUTE,
     CONF_DELAY_ON,
     CONF_ENTITIES,
     CONF_EVENT_COUNT,
+    CONF_GROUP_MODE,
     CONF_MODES,
     CONF_NAME,
     CONF_SENSOR_ENTRY_DELAY,
+    CONF_THRESHOLD,
     CONF_TIMEOUT,
+    CONF_WEIGHTS,
     DOMAIN,
+    MODE_WEIGHTED_DECAY,
     SUBENTRY_TYPE_ALARMO_IMPORT,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_SENSOR_GROUP,
@@ -373,6 +378,147 @@ async def test_reconfigure_sensor_group(hass):
     updated = entry.subentries[subentry.subentry_id]
     assert updated.data[CONF_ENTITIES] == [motion1, motion2, motion3]
     assert updated.data[CONF_EVENT_COUNT] == 3
+
+
+async def test_add_weighted_sensor_group_walks_through_weights_step(hass):
+    entry = await _entry(hass)
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_SENSOR_GROUP),
+        context={"source": "user"},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Weighted motion",
+            CONF_ENTITIES: [motion1, motion2],
+            CONF_TIMEOUT: 15,
+            CONF_EVENT_COUNT: 2,
+            CONF_GROUP_MODE: MODE_WEIGHTED_DECAY,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "weights"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_DECAY_PER_MINUTE: 2,
+            CONF_THRESHOLD: 12,
+            motion1: 15,
+            motion2: 5,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    (subentry,) = [
+        s
+        for s in entry.subentries.values()
+        if s.subentry_type == SUBENTRY_TYPE_SENSOR_GROUP
+    ]
+    assert subentry.data[CONF_GROUP_MODE] == MODE_WEIGHTED_DECAY
+    assert subentry.data[CONF_DECAY_PER_MINUTE] == 2
+    assert subentry.data[CONF_THRESHOLD] == 12
+    assert subentry.data[CONF_WEIGHTS] == {motion1: 15, motion2: 5}
+
+
+async def test_add_default_mode_sensor_group_skips_weights_step(hass):
+    """count_window (the default) is unaffected - no new step in its way."""
+    entry = await _entry(hass)
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_SENSOR_GROUP),
+        context={"source": "user"},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Motion confirm",
+            CONF_ENTITIES: [motion1, motion2],
+            CONF_TIMEOUT: 15,
+            CONF_EVENT_COUNT: 2,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_reconfigure_weighted_sensor_group_round_trips_weights(hass):
+    entry = await _entry(hass)
+    registry = er.async_get(hass)
+    motion1 = registry.async_get_or_create("binary_sensor", "test", "motion1").entity_id
+    motion2 = registry.async_get_or_create("binary_sensor", "test", "motion2").entity_id
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={
+                CONF_NAME: "Weighted motion",
+                CONF_ENTITIES: [motion1, motion2],
+                CONF_TIMEOUT: 10,
+                CONF_EVENT_COUNT: 2,
+                CONF_GROUP_MODE: MODE_WEIGHTED_DECAY,
+                CONF_DECAY_PER_MINUTE: 2,
+                CONF_THRESHOLD: 12,
+                CONF_WEIGHTS: {motion1: 15, motion2: 5},
+            },
+            subentry_type=SUBENTRY_TYPE_SENSOR_GROUP,
+            title="Weighted motion",
+            unique_id=None,
+        ),
+    )
+    (subentry,) = [
+        s
+        for s in entry.subentries.values()
+        if s.subentry_type == SUBENTRY_TYPE_SENSOR_GROUP
+    ]
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry.subentry_id)
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Weighted motion",
+            CONF_ENTITIES: [motion1, motion2],
+            CONF_TIMEOUT: 10,
+            CONF_EVENT_COUNT: 2,
+            CONF_GROUP_MODE: MODE_WEIGHTED_DECAY,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_weights"
+    # existing weights/decay/threshold are attached to the schema as
+    # suggested values for the frontend to pre-fill (add_suggested_values_to_schema
+    # stores them as field description metadata, not schema defaults, so they
+    # aren't observable via data_schema({}) - verified below via round-trip instead)
+    for marker in result["data_schema"].schema:
+        if str(marker) == motion1:
+            assert marker.description == {"suggested_value": 15}
+        elif str(marker) == motion2:
+            assert marker.description == {"suggested_value": 5}
+        elif str(marker) == CONF_DECAY_PER_MINUTE:
+            assert marker.description == {"suggested_value": 2}
+        elif str(marker) == CONF_THRESHOLD:
+            assert marker.description == {"suggested_value": 12}
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            CONF_DECAY_PER_MINUTE: 3,
+            CONF_THRESHOLD: 20,
+            motion1: 10,
+            motion2: 10,
+        },
+    )
+    assert result["type"] is FlowResultType.ABORT
+
+    updated = entry.subentries[subentry.subentry_id]
+    assert updated.data[CONF_WEIGHTS] == {motion1: 10, motion2: 10}
+    assert updated.data[CONF_THRESHOLD] == 20
 
 
 async def test_manage_sensors_applies_arm_on_close_and_delay_on_to_new_sensors(hass):

@@ -104,12 +104,14 @@
             "name": "Name",
             "entities": "Member sensors",
             "timeout": "Confirmation window (seconds)",
-            "event_count": "Sensors required to confirm"
+            "event_count": "Sensors required to confirm",
+            "mode": "Confirmation mode"
           },
           "data_description": {
             "entities": "Each of these must also be individually attached to the relevant area via that area's \"Manage sensors\" step",
             "timeout": "How many seconds apart member trips can be and still count together",
-            "event_count": "How many members must trip within the window before it counts as one confirmed event"
+            "event_count": "How many members must trip within the window before it counts as one confirmed event",
+            "mode": "Count window: exactly event_count members must trip within the window above. Weighted decay: each member has its own weight instead - configured on the next step"
           }
         },
         "reconfigure": {
@@ -118,7 +120,22 @@
             "name": "Name",
             "entities": "Member sensors",
             "timeout": "Confirmation window (seconds)",
-            "event_count": "Sensors required to confirm"
+            "event_count": "Sensors required to confirm",
+            "mode": "Confirmation mode"
+          }
+        },
+        "weights": {
+          "title": "Set member weights",
+          "data_description": {
+            "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
+            "threshold": "The alarm confirms once the running weighted score crosses this value"
+          }
+        },
+        "reconfigure_weights": {
+          "title": "Set member weights",
+          "data_description": {
+            "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
+            "threshold": "The alarm confirms once the running weighted score crosses this value"
           }
         }
       }
