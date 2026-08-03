@@ -12,8 +12,9 @@ rules:
       custom_components/midnight_alerts/brand/ (icon/logo, dark variants,
       @2x) - read directly by HA Core 2026.3.0+ per the Brands Proxy API,
       no manifest key needed. Requires 2026.3.0+ to actually render; won't
-      show on older cores (e.g. this repo's dev instance, pinned below
-      that version, shows no logo - not a bug in the integration).
+      show on older cores. This repo's dev instance was upgraded to Python
+      3.14 / HA Core 2026.7.3 specifically to verify this renders
+      correctly - confirmed working.
   common-modules:
     status: done
     comment: >-
@@ -86,14 +87,28 @@ rules:
       config flow's required field (API Key) and the location-verification
       check performed at setup.
   entity-unavailable:
-    status: todo
+    status: exempt
     comment: >-
-      Needs review - neither the button nor the alarm_control_panel
-      entities override `available`; not yet audited for either platform.
+      alarm_control_panel.py's MidnightAlarmArea makes zero network calls
+      (pure local state machine - sensor events, PIN checks, scheduled
+      callbacks), so there's nothing to check. button.py's
+      MidnightAlertButton is the only entity that calls the network, but
+      setting _attr_available = False on a failed press would get it
+      filtered out of all future button.press calls by HA's own
+      entity_service_call dispatch (helpers/service.py's
+      _resolve_entity_service_call_entities) - and with no
+      polling/coordinator, nothing would ever flip it back. That's a
+      permanent lockout of the emergency alert button after one transient
+      failure, not an improvement. Always-available + a real logged error
+      on press is the safer behavior here (see button.py's docstring).
   integration-owner: done
   log-when-unavailable:
-    status: todo
-    comment: Needs review - not yet audited.
+    status: exempt
+    comment: >-
+      Same reasoning as entity-unavailable - no unavailable state is ever
+      entered on either entity, so there's no transition to log once
+      rather than spam. A failed button press already logs via
+      _LOGGER.error in async_press today, so failures aren't silent.
   parallel-updates:
     status: done
     comment: PARALLEL_UPDATES = 0 set on both button.py and alarm_control_panel.py.

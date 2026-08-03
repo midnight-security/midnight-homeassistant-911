@@ -66,6 +66,14 @@ rules (`docs-high-level-description`, `docs-installation-instructions`,
 location-verification check, and the crash-reporting option) instead of
 only the original button.
 
+`entity-unavailable` and `log-when-unavailable` are exempt — the alarm
+area entity makes no network calls at all, and the button (the only
+entity that does) deliberately never tracks availability from its own
+press outcome, since HA's entity_service_call dispatch filters out
+unavailable entities before invoking them and this button has no
+polling/coordinator to ever retry and flip it back - see the comment on
+`MidnightAlertButton` in `button.py`.
+
 Still open, to revisit later: `icon-translations` and
 `reconfiguration-flow` (Gold — the latter is about the top-level API-key
 entry, not the alarm feature's own subentry reconfigure flows, which

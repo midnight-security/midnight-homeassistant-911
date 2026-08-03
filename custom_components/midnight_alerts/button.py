@@ -26,7 +26,19 @@ async def async_setup_entry(
 
 
 class MidnightAlertButton(ButtonEntity):
-    """Representation of a Midnight Alert button."""
+    """Representation of a Midnight Alert button.
+
+    Deliberately never overrides `available` (stays HA's default True
+    always) - this is the integration's only network-calling entity, but
+    HA's own entity_service_call dispatch (helpers/service.py) filters out
+    unavailable entities *before* invoking them, and this button has no
+    polling/coordinator to ever retry and flip availability back. Setting
+    _attr_available = False on a failed press would silently lock out
+    every future button.press call forever - a permanent lockout of the
+    emergency alert button after one transient failure. Always-available
+    plus a real logged error on press (see async_press) is the safer
+    behavior for this entity specifically.
+    """
 
     _attr_has_entity_name = True
     _attr_translation_key = "trigger_alert"
