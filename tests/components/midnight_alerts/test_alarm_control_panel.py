@@ -193,6 +193,81 @@ async def test_disarm_is_immediate(hass):
     assert hass.states.get(entity_id).state == AlarmControlPanelState.DISARMED
 
 
+async def test_open_sensors_attribute_reflects_current_sensor_state(hass):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "on")
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(hass, sensor_entity_id, area_subentry_id="area1")
+
+    await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    entity_id = _find_entity_id(hass, "area1")
+    assert hass.states.get(entity_id).attributes["open_sensors"] == [sensor_entity_id]
+
+    hass.states.async_set(sensor_entity_id, "off")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["open_sensors"] == []
+
+
+async def test_bypassed_sensors_attribute_only_set_for_override_armed_session(hass, freezer):
+    registry = er.async_get(hass)
+    sensor_entity_id = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    hass.states.async_set(sensor_entity_id, "on")  # already open at arm time
+    await hass.async_block_till_done()
+    sensors.async_set_sensor_options(
+        hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
+    )
+
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    entity_id = _find_entity_id(hass, "area1")
+
+    # not yet armed - no bypass to report
+    assert "bypassed_sensors" not in hass.states.get(entity_id).attributes
+
+    await _add_user(hass, entry, is_override_code=True)
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id, "code": "1234"},
+        blocking=True,
+    )
+    freezer.move_to(dt_util.utcnow() + timedelta(seconds=11))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert hass.states.get(entity_id).attributes["bypassed_sensors"] == [
+        sensor_entity_id
+    ]
+
+
+async def test_next_state_change_exposes_the_exit_deadline_while_arming(hass, freezer):
+    await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    entity_id = _find_entity_id(hass, "area1")
+
+    arm_time = dt_util.utcnow()
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).attributes["next_state_change"] == (
+        arm_time + timedelta(seconds=60)
+    ).isoformat()
+
+    # once ARMED, the stale arming_until deadline must not still be reported
+    freezer.move_to(arm_time + timedelta(seconds=61))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert "next_state_change" not in hass.states.get(entity_id).attributes
+
+
 async def test_wrong_code_is_rejected_and_state_unchanged(hass):
     entry = await _setup_entry(
         hass,

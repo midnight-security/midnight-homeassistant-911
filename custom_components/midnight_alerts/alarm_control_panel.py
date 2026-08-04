@@ -193,6 +193,38 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         """No code is demanded at all until at least one user is configured."""
         return pin.any_users_configured(self._entry)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Sensor/countdown detail a Lovelace card can render without Alarmo."""
+        display = self.alarm_state  # also applies any pending auto-revert
+
+        attrs: dict[str, Any] = {"open_sensors": self._open_sensors()}
+
+        if self._fsm.armed_with_override:
+            attrs["bypassed_sensors"] = self._open_arm_on_close_sensors()
+
+        # An absolute timestamp rather than a "seconds remaining" countdown:
+        # this entity only writes state at meaningful transitions, so a
+        # pre-computed remaining-seconds figure would read stale to a card
+        # for however long it sits between writes. A deadline timestamp is
+        # correct no matter when it's read, and a card can render its own
+        # live countdown from it (e.g. Lovelace's `relative_time` helper).
+        #
+        # arming_until/pending_until/trigger_until are left in place on the
+        # FSM after their transition settles (nothing needs them anymore), so
+        # picking one has to be gated on which deadline *this* display state
+        # actually corresponds to - a stale ARMING deadline in an
+        # already-armed FSM would otherwise look like a still-pending one.
+        deadline = {
+            AlarmControlPanelState.ARMING: self._fsm.arming_until,
+            AlarmControlPanelState.PENDING: self._fsm.pending_until,
+            AlarmControlPanelState.TRIGGERED: self._fsm.trigger_until,
+        }.get(display)
+        if deadline is not None:
+            attrs["next_state_change"] = deadline.isoformat()
+
+        return attrs
+
     def _mode_config(self, mode: AlarmControlPanelState | None) -> dict[str, Any]:
         if mode is None:
             return {}
@@ -274,19 +306,26 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             self._fsm = alarm_state_lib.hold_for_close(self._fsm)
         self.async_write_ha_state()
 
-    def _open_arm_on_close_sensors(self) -> list[str]:
-        """Currently-open sensors in this area flagged arm_on_close."""
+    def _open_sensors(self) -> list[str]:
+        """Currently-open sensors in this area, regardless of any flag."""
         open_sensors = []
         for entity_id in sensors.sensors_for_area(
             self.hass, self._subentry.subentry_id
         ):
-            options = sensors.async_get_sensor_options(self.hass, entity_id) or {}
-            if not options.get(CONF_ARM_ON_CLOSE):
-                continue
             state = self.hass.states.get(entity_id)
             if state and sensors.parse_sensor_state(state.state) == "open":
                 open_sensors.append(entity_id)
         return open_sensors
+
+    def _open_arm_on_close_sensors(self) -> list[str]:
+        """Currently-open sensors in this area flagged arm_on_close."""
+        return [
+            entity_id
+            for entity_id in self._open_sensors()
+            if (sensors.async_get_sensor_options(self.hass, entity_id) or {}).get(
+                CONF_ARM_ON_CLOSE
+            )
+        ]
 
     # --- arm / disarm / trigger -----------------------------------------
 
@@ -382,6 +421,12 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             self._async_handle_sensor_open(entity_id)
         elif status == "closed":
             self._async_handle_sensor_closed(entity_id)
+
+        # Handling above only writes state itself when it moves the FSM: a
+        # sensor open/close while disarmed (or already covered by an
+        # unaffected hold) is invisible to the FSM but still needs to be
+        # reflected in the `open_sensors` attribute, so write unconditionally.
+        self.async_write_ha_state()
 
     def _async_handle_sensor_open(self, entity_id: str) -> None:
         options = sensors.async_get_sensor_options(self.hass, entity_id) or {}
