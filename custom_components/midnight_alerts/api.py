@@ -18,14 +18,14 @@ class MidnightAlertsAuthError(MidnightAlertsApiError):
 
 async def async_exchange_code(session: ClientSession, code: str) -> str:
     """Exchange a one-time login code from app.midnight.security for an API key."""
-    url = f"{BASE_URL}/oauth/exchange"
+    url = f"{BASE_URL}/oauth/token"
     try:
         async with session.post(url, json={"code": code}) as resp:
             if resp.status in (400, 401, 403):
                 raise MidnightAlertsAuthError(f"Login code rejected ({resp.status})")
             if resp.status != 200:
                 raise MidnightAlertsApiError(
-                    f"POST oauth/exchange failed: {resp.status} {await resp.text()}"
+                    f"POST oauth/token failed: {resp.status} {await resp.text()}"
                 )
             data = await resp.json()
     except ClientError as err:
@@ -46,7 +46,7 @@ class MidnightAlertsApiClient:
 
     async def async_validate(self) -> None:
         """Validate the API key, raising if it is rejected."""
-        await self._async_request("GET", "validate")
+        await self._async_request("GET", "oauth/token")
 
     async def async_trigger_alert(self, payload: dict) -> None:
         """Trigger an alert."""
