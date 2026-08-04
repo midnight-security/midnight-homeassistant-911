@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Capture version before release
+        id: before
+        run: echo "version=$(jq -r .version custom_components/midnight_alerts/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: yarn semantic-release
+
+      - name: Capture version after release
+        id: after
+        run: echo "version=$(jq -r .version custom_components/midnight_alerts/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      # Only fires when semantic-release actually published a new version -
+      # same version source of truth error_reporting.py tags exceptions with.
+      - name: Record Sentry release and deploy
+        if: steps.before.outputs.version != steps.after.outputs.version
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: production
+          release: ${{ steps.after.outputs.version }}
+          set_commits: auto
+
+  build-zip:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Zip
+        run: cd custom_components/midnight_alerts && zip -r midnight_alerts.zip . -x 'midnight_alerts.zip'
+
+      - name: Upload Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: midnight_alerts
+          path: custom_components/midnight_alerts/midnight_alerts.zip
+          if-no-files-found: error

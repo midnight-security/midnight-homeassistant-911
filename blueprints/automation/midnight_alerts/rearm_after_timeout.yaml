@@ -1,0 +1,60 @@
+blueprint:
+  name: Midnight Alarm - Re-arm After Timeout
+  description: >-
+    Automatically re-arms a Midnight Alarm area if it's left disarmed
+    longer than a configured timeout - handy for a household that
+    routinely forgets to re-arm after a quick disarm. A real, editable
+    Home Assistant automation instead of Alarmo's own built-in re-arm
+    timer.
+  domain: automation
+  source_url: https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/rearm_after_timeout.yaml
+  author: Midnight Security
+  input:
+    alarm_entity:
+      name: Midnight Alarm area
+      description: The alarm_control_panel entity for the area to re-arm.
+      selector:
+        entity:
+          filter:
+            - domain: alarm_control_panel
+    rearm_after:
+      name: Re-arm after
+      description: How long the area must stay disarmed before it's re-armed.
+      default:
+        minutes: 15
+      selector:
+        duration: {}
+    rearm_mode:
+      name: Mode to re-arm into
+      default: home
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Home
+              value: home
+            - label: Away
+              value: away
+            - label: Night
+              value: night
+            - label: Vacation
+              value: vacation
+            - label: Custom bypass
+              value: custom_bypass
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input alarm_entity
+    to: disarmed
+    for: !input rearm_after
+
+variables:
+  rearm_mode: !input rearm_mode
+
+actions:
+  - alias: "Re-arm into the configured mode"
+    action: "alarm_control_panel.alarm_arm_{{ rearm_mode }}"
+    target:
+      entity_id: !input alarm_entity

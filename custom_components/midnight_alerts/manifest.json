@@ -1,12 +1,12 @@
 {
   "domain": "midnight_alerts",
-  "name": "Midnight 911 Integration",
-  "codeowners": ["@conryf"],
+  "name": "Midnight 911",
+  "codeowners": ["@midnight-security/midnight-team"],
   "config_flow": true,
-  "dependencies": ["http"],
-  "documentation": "https://github.com/midnight-security/ha-midnight-noo",
+  "documentation": "https://github.com/midnight-security/midnight-homeassistant-911/blob/master/docs/midnight_alerts.markdown",
+  "integration_type": "service",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/midnight-security/ha-midnight-noo/issues",
-  "requirements": [],
-  "version": "1.0.0"
+  "issue_tracker": "https://github.com/midnight-security/midnight-homeassistant-911/issues",
+  "requirements": ["sentry-sdk==2.66.1", "bcrypt==4.3.0"],
+  "version": "0.4.0"
 }
