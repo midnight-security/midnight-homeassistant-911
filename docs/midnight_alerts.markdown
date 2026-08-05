@@ -85,24 +85,30 @@ During setup you'll be asked for:
 
 | Field | Description |
 | --- | --- |
-| API Key | The API key from your Midnight Security account. |
+| API Key | The API key from your Midnight Security account. **Optional** - leave it blank to set up the alarm system (areas, sensors, PINs, arming/disarming) without dispatching to Midnight yet. Everything works locally either way; only the **Trigger Alert** button needs a key, and it logs a clear error instead of doing anything if pressed without one. |
 | Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Configure, and re-asked (pre-filled with your current choice) if you ever have to reauthenticate. |
 
-Setup also verifies that Home Assistant's own configured location (Settings
-→ System → General) is within 1000 feet of the address on file for that API
-key, and blocks completing setup if they don't match closely enough — this
-catches a key pasted into the wrong Home Assistant instance, or a stale
-`hass.config` location, before it could send a real emergency dispatch to
-the wrong place. This same check runs again every time the integration
-loads (e.g. after a restart); if Home Assistant's location drifts out of
-sync afterward, it's surfaced as a Repair (Settings → System → Repairs)
-rather than breaking the integration outright.
+If you do provide a key, setup also verifies that Home Assistant's own
+configured location (Settings → System → General) is within 1000 feet of
+the address on file for it, and blocks completing setup if they don't
+match closely enough — this catches a key pasted into the wrong Home
+Assistant instance, or a stale `hass.config` location, before it could
+send a real emergency dispatch to the wrong place. This same check runs
+again every time the integration loads (e.g. after a restart); if Home
+Assistant's location drifts out of sync afterward, it's surfaced as a
+Repair (Settings → System → Repairs) rather than breaking the integration
+outright. None of this runs at all if the key is left blank - there's
+nothing to validate yet.
 
-If the stored API key stops validating later (revoked, rotated, etc.),
-Home Assistant automatically prompts for a new one - via a
-"Reauthenticate" notification on the integration's card, no need to
-remove and re-add it. The new key goes through the same location check
-described above.
+Left it blank, or need to change it later? Settings → Devices & services
+→ Midnight 911 → **Reconfigure** opens the same form again, with your
+current key (if any) and crash-reporting choice pre-filled, and goes
+through the same location check if you provide one.
+
+If a *stored* API key stops validating (revoked, rotated, etc.), Home
+Assistant automatically prompts for a new one - via a "Reauthenticate"
+notification on the integration's card, no need to remove and re-add it.
+The new key goes through the same location check described above.
 
 This creates the **Midnight 911** hub and the **Trigger Alert** button.
 Everything below is optional, added afterward from the hub's own **Add**

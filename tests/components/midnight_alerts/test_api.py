@@ -19,6 +19,11 @@ def _client(hass, **kwargs):
     return MidnightAlertsApiClient("test-key", async_get_clientsession(hass), **kwargs)
 
 
+async def test_is_configured_reflects_whether_a_key_was_set(hass):
+    assert _client(hass).is_configured is True
+    assert MidnightAlertsApiClient("", async_get_clientsession(hass)).is_configured is False
+
+
 async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
     """validate() must call BASE_URL/validate with a bearer Authorization header
     and pass this Home Assistant instance's own lat/lng as query params, since

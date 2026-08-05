@@ -61,9 +61,11 @@ from .const import (
 )
 
 DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_API_KEY): str,
+    vol.Optional(CONF_API_KEY, default=""): str,
     vol.Required(CONF_ENABLE_CRASH_REPORTING, default=False): bool,
 })
+
+_ENTRY_SOURCES = (config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE)
 
 
 class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -72,11 +74,19 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step - also reused for reauth (see async_step_reauth).
+        """Handle the initial step - also reused for reauth/reconfigure.
 
         Crash reporting is asked here, alongside the API key, rather than
         being something only discoverable later via Configure - opt-in
         consent belongs in the same place the account itself is set up.
+
+        The API key itself is optional: the alarm engine (areas, sensors,
+        PINs, arm/disarm/trigger) is entirely local and works fully without
+        one - only the Trigger Alert button actually calls Midnight's API,
+        and it already handles being unconfigured gracefully (button.py).
+        Leaving it blank skips validation/location-check entirely and
+        finishes immediately; a key can be added anytime afterward via
+        Reconfigure (async_step_reconfigure).
         """
         errors = {}
 
@@ -85,9 +95,13 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # (an ordinary, changeable-anytime preference), not its data
             # (the API key, which is what data_updates/data replace).
             enable_crash_reporting = user_input.pop(CONF_ENABLE_CRASH_REPORTING, False)
-            client = MidnightAlertsApiClient(
-                user_input[CONF_API_KEY], async_get_clientsession(self.hass)
-            )
+            api_key = user_input[CONF_API_KEY].strip()
+            user_input[CONF_API_KEY] = api_key
+
+            if not api_key:
+                return await self._async_finish(user_input, enable_crash_reporting)
+
+            client = MidnightAlertsApiClient(api_key, async_get_clientsession(self.hass))
             try:
                 result = await client.async_validate(
                     latitude=self.hass.config.latitude,
@@ -106,24 +120,8 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "no_account_location"
                 elif location_match is False:
                     errors["base"] = "location_mismatch"
-                elif self.source == config_entries.SOURCE_REAUTH:
-                    reauth_entry = self._get_reauth_entry()
-                    return self.async_update_reload_and_abort(
-                        reauth_entry,
-                        data_updates=user_input,
-                        options={
-                            **reauth_entry.options,
-                            CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting,
-                        },
-                    )
                 else:
-                    await self.async_set_unique_id(DOMAIN)
-                    self._abort_if_unique_id_configured()
-                    return self.async_create_entry(
-                        title="Midnight 911",
-                        data=user_input,
-                        options={CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
-                    )
+                    return await self._async_finish(user_input, enable_crash_reporting)
 
         return self.async_show_form(
             step_id="user",
@@ -131,14 +129,53 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    def _user_data_schema(self) -> vol.Schema:
-        """DATA_SCHEMA, pre-filled with the current crash-reporting choice on reauth."""
-        if self.source != config_entries.SOURCE_REAUTH:
-            return DATA_SCHEMA
-        current = self._get_reauth_entry().options.get(CONF_ENABLE_CRASH_REPORTING, False)
-        return self.add_suggested_values_to_schema(
-            DATA_SCHEMA, {CONF_ENABLE_CRASH_REPORTING: current}
+    async def _async_finish(
+        self, user_input: dict[str, Any], enable_crash_reporting: bool
+    ) -> FlowResult:
+        """Create the entry, or update+reload an existing one on reauth/reconfigure."""
+        if self.source == config_entries.SOURCE_REAUTH:
+            entry = self._get_reauth_entry()
+        elif self.source == config_entries.SOURCE_RECONFIGURE:
+            entry = self._get_reconfigure_entry()
+        else:
+            await self.async_set_unique_id(DOMAIN)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title="Midnight 911",
+                data=user_input,
+                options={CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
+            )
+
+        return self.async_update_reload_and_abort(
+            entry,
+            data_updates=user_input,
+            options={**entry.options, CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
         )
+
+    def _user_data_schema(self) -> vol.Schema:
+        """DATA_SCHEMA, pre-filled with current values on reauth/reconfigure.
+
+        Reauth deliberately leaves the API key itself blank rather than
+        suggesting the old one - it's here because that key stopped
+        working, so re-showing it would just invite resubmitting the same
+        broken value. Reconfigure suggests it, since editing (or filling
+        in) an otherwise-working entry is the whole point of that flow.
+        """
+        if self.source not in _ENTRY_SOURCES:
+            return DATA_SCHEMA
+        entry = (
+            self._get_reauth_entry()
+            if self.source == config_entries.SOURCE_REAUTH
+            else self._get_reconfigure_entry()
+        )
+        suggested = {
+            CONF_ENABLE_CRASH_REPORTING: entry.options.get(
+                CONF_ENABLE_CRASH_REPORTING, False
+            )
+        }
+        if self.source == config_entries.SOURCE_RECONFIGURE:
+            suggested[CONF_API_KEY] = entry.data.get(CONF_API_KEY, "")
+        return self.add_suggested_values_to_schema(DATA_SCHEMA, suggested)
 
     async def async_step_reauth(self, entry_data) -> FlowResult:
         """Handle reauth when the stored API key stops validating.
@@ -147,6 +184,17 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         async_setup_entry raises ConfigEntryAuthFailed - reuses
         async_step_user's form/validation as-is (single api_key field,
         same location check), branching only at the end on self.source.
+        """
+        return await self.async_step_user()
+
+    async def async_step_reconfigure(self, user_input=None) -> FlowResult:
+        """Handle a user-initiated edit of the API key and/or crash reporting.
+
+        Only ever called once, same as async_step_reauth above - the form
+        it shows has step_id "user", so the frontend's actual submission
+        routes straight to async_step_user, not back through here. Reuses
+        that same form/validation as-is; the only real difference between
+        the three sources is which branch of _async_finish they end up in.
         """
         return await self.async_step_user()
 

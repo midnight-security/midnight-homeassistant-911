@@ -57,6 +57,14 @@ class MidnightAlertButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Trigger the alert when button is pressed."""
+        if not self._client.is_configured:
+            _LOGGER.error(
+                "Cannot send alert: no Midnight Alerts API key configured yet - "
+                "add one from Settings > Devices & services > Midnight 911 > "
+                "Reconfigure"
+            )
+            return
+
         payload = {
             "lat": self.hass.config.latitude,
             "lng": self.hass.config.longitude,

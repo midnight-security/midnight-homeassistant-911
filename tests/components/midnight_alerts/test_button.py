@@ -52,3 +52,21 @@ async def test_button_press_failure_is_logged_not_raised(hass, caplog):
             blocking=True,
         )
     assert "Failed to send alert" in caplog.text
+
+
+async def test_button_press_without_api_key_is_a_local_noop(hass, caplog):
+    """No key configured yet - fail locally with a clear message, no network call."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
+    entry.add_to_hass(hass)
+    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with patch(TRIGGER, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+        await hass.services.async_call(
+            "button",
+            "press",
+            {"entity_id": "button.midnight_911_trigger_alert"},
+            blocking=True,
+        )
+    assert "no Midnight Alerts API key configured" in caplog.text

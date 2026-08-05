@@ -103,6 +103,22 @@ async def test_reload_after_location_fixed_clears_repair_issue(hass):
     assert ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is None
 
 
+async def test_setup_entry_without_api_key_loads_without_validating(hass):
+    """No key yet is a supported state - setup succeeds, nothing gets validated."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
+    entry.add_to_hass(hass)
+
+    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    assert device is not None
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
+    assert issue is None
+
+
 async def test_unload_entry(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)

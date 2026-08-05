@@ -68,6 +68,22 @@ async def test_form_user_success_records_an_accepted_crash_reporting_choice(hass
     assert result["options"] == {CONF_ENABLE_CRASH_REPORTING: True}
 
 
+async def test_form_user_success_without_api_key_creates_an_inert_entry(hass):
+    """A blank key is a supported choice - setup finishes with no validation attempted."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "  "}  # whitespace-only counts as blank
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {CONF_API_KEY: ""}
+
+
 async def test_form_location_mismatch(hass):
     """An account location far from hass.config's own location blocks setup."""
     result = await hass.config_entries.flow.async_init(
@@ -239,3 +255,65 @@ async def test_reauth_can_change_the_crash_reporting_choice(hass):
     assert result["reason"] == "reauth_successful"
     assert entry.data == {CONF_API_KEY: "new-key"}
     assert entry.options == {CONF_ENABLE_CRASH_REPORTING: False}
+
+
+async def test_reconfigure_suggests_the_current_api_key_and_crash_reporting_choice(hass):
+    """Unlike reauth, reconfigure pre-fills the existing key - editing a working
+    entry (or filling in a previously-blank key) is the whole point here."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: "existing-key"},
+        options={CONF_ENABLE_CRASH_REPORTING: True},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    for marker in result["data_schema"].schema:
+        if str(marker) == CONF_API_KEY:
+            assert marker.description == {"suggested_value": "existing-key"}
+        elif str(marker) == CONF_ENABLE_CRASH_REPORTING:
+            assert marker.description == {"suggested_value": True}
+
+
+async def test_reconfigure_can_add_a_previously_blank_api_key(hass):
+    """The main path this exists for: add a key to an entry set up without one."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: ""}
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: True},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data == {CONF_API_KEY: "new-key"}
+    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: True}
+    # still the same entry, not a duplicate second one
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_reconfigure_location_mismatch_shows_form_again(hass):
+    """Reconfigure goes through the exact same validation path as initial setup."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old-key"})
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "new-key"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "location_mismatch"}
+    assert entry.data == {CONF_API_KEY: "old-key"}

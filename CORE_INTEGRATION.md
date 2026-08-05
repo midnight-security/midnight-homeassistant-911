@@ -74,10 +74,11 @@ unavailable entities before invoking them and this button has no
 polling/coordinator to ever retry and flip it back - see the comment on
 `MidnightAlertButton` in `button.py`.
 
-Still open, to revisit later: `icon-translations` and
-`reconfiguration-flow` (Gold — the latter is about the top-level API-key
-entry, not the alarm feature's own subentry reconfigure flows, which
-already work), `strict-typing` (Platinum).
+Still open, to revisit later: `icon-translations` (Gold), `strict-typing`
+(Platinum). `reconfiguration-flow` is now done — the config flow accepts a
+blank API key at setup (the alarm engine works fully locally either way)
+and `async_step_reconfigure` lets one be added or changed afterward
+without removing and re-adding the entry.
 `dynamic-devices` is flagged but not resolved — each area subentry gets
 its own device added/removed live, and real core integrations disagree on
 whether that counts as "dynamic" for this rule (see the comment in

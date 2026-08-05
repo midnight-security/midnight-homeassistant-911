@@ -64,8 +64,19 @@ rules:
   runtime-data:
     status: done
     comment: __init__.py now sets entry.runtime_data; both platforms read from it.
-  test-before-configure: done
-  test-before-setup: done
+  test-before-configure:
+    status: done
+    comment: >-
+      async_step_user calls async_validate before creating the entry -
+      skipped only when the API key field was intentionally left blank,
+      which is itself a supported setup path (see config_flow.py's
+      async_step_user docstring), not a bypass of this rule.
+  test-before-setup:
+    status: done
+    comment: >-
+      async_setup_entry re-validates on every load, raising
+      ConfigEntryAuthFailed/ConfigEntryNotReady as appropriate - same
+      blank-key exemption as test-before-configure above.
   unique-config-entry: done
 
   # Silver
@@ -256,12 +267,20 @@ rules:
     status: todo
     comment: button.py uses a hardcoded _attr_icon instead of icons.json.
   reconfiguration-flow:
-    status: todo
+    status: done
     comment: >-
-      The main config flow (API key) only implements async_step_user - no
-      reconfigure step to change the key without removing and re-adding the
-      entry. Unrelated to the alarm feature's own subentries, which do have
-      working reconfigure flows (area/user/sensor_group).
+      MidnightAlertsConfigFlow.async_step_reconfigure delegates to
+      async_step_user itself (same form/validation, same location check),
+      branching only at the end on self.source ==
+      config_entries.SOURCE_RECONFIGURE to call
+      async_update_reload_and_abort instead of async_create_entry - the
+      same pattern reauth already used. Lets a key be added (or changed)
+      without removing and re-adding the entry - including filling one in
+      for the first time, now that the config flow accepts a blank key at
+      initial setup (the alarm engine works fully locally either way; only
+      the Trigger Alert button needs a key). Unrelated to the alarm
+      feature's own subentries, which already had working reconfigure
+      flows (area/user/sensor_group).
   repair-issues:
     status: done
     comment: >-

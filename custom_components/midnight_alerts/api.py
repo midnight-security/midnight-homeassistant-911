@@ -35,6 +35,16 @@ class MidnightAlertsApiClient:
         self._report_errors = report_errors
         self._release = release
 
+    @property
+    def is_configured(self) -> bool:
+        """Whether an API key has actually been set.
+
+        The integration can be added with this blank (the alarm engine
+        works entirely locally regardless), so callers that would otherwise
+        make a doomed request - the button, mainly - can check this first.
+        """
+        return bool(self._api_key)
+
     async def async_validate(self, *, latitude: float, longitude: float) -> dict:
         """Validate the API key, raising if it is rejected.
 
