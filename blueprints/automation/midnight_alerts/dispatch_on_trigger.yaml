@@ -1,0 +1,59 @@
+blueprint:
+  name: Midnight Alarm - Dispatch on Trigger
+  description: >-
+    Presses the Midnight 911 "Trigger Alert" button once an
+    alarm_control_panel entity has sat in `triggered` for a configurable
+    grace period, unacknowledged - and the alarm engine doesn't have to be
+    Midnight's own. Point this at an Alarmo area (or `manual`, or anything
+    else that exposes an alarm_control_panel) to let it drive Midnight's
+    real 911 dispatch, so you can keep using Alarmo's UI/automations for
+    the alarm itself while still getting an actual emergency dispatch if
+    it isn't disarmed in time. The ready-made version of the "Escalate an
+    unresolved trigger" example in docs/midnight_alerts.markdown - if the
+    alarm leaves `triggered` before the grace period elapses (disarmed, a
+    false alarm), this simply never fires.
+  domain: automation
+  source_url: https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/dispatch_on_trigger.yaml
+  author: Midnight Security
+  input:
+    alarm_entity:
+      name: Alarm to watch
+      description: >-
+        The alarm_control_panel entity to watch - a Midnight Alarm area,
+        an Alarmo area, or any other alarm_control_panel entity.
+      selector:
+        entity:
+          filter:
+            - domain: alarm_control_panel
+    grace_period:
+      name: Grace period before dispatching
+      description: >-
+        How long the alarm must stay triggered, unacknowledged, before
+        Midnight actually dispatches. Set to 0 seconds to dispatch the
+        moment it triggers.
+      default:
+        seconds: 60
+      selector:
+        duration: {}
+    trigger_button:
+      name: Midnight 911 Trigger Alert button
+      description: The button entity that dispatches the alert.
+      selector:
+        entity:
+          filter:
+            - domain: button
+              integration: midnight_alerts
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input alarm_entity
+    to: triggered
+    for: !input grace_period
+
+actions:
+  - alias: "Dispatch to Midnight 911"
+    action: button.press
+    target:
+      entity_id: !input trigger_button

@@ -280,14 +280,15 @@ automation:
 <div class='note'>
 
 The YAML above is a starting point to hand-adapt. For a ready-made version
-of each with no copy-pasting required, see the two bundled blueprints
-below.
+of each with no copy-pasting required, see the bundled blueprints below -
+including one that generalizes the second example to work with any
+alarm_control_panel entity, Alarmo included.
 
 </div>
 
 ### Ready-made blueprints
 
-This repo bundles five blueprints under
+This repo bundles six blueprints under
 [`blueprints/automation/midnight_alerts/`](https://github.com/midnight-security/midnight-homeassistant-911/tree/master/blueprints/automation/midnight_alerts) —
 the direct replacement for Alarmo's own built-in "notification," "device
 switching," and "automatic arming" automation features, as real, editable
@@ -301,13 +302,14 @@ integration:
 | [Re-arm After Timeout](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/rearm_after_timeout.yaml) | Automatically re-arms an area into a mode you choose if it's left disarmed longer than a configurable timeout. |
 | [Auto-Arm Away When Everyone Leaves](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/auto_arm_away_when_everyone_leaves.yaml) | Arms an area away once every tracked `person` entity has left home. Alarmo's own docs say this specific recipe needs a hand-written automation too - this is that automation, ready to use. |
 | [Retry Arm on Failed Arm](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/retry_arm_on_failed_to_arm.yaml) | Sends an actionable notification with a "Retry Arm" button whenever a sensor without exit delay blocks arming - the equivalent of Alarmo's actionable "failed to arm" push notification. |
+| [Dispatch on Trigger](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/dispatch_on_trigger.yaml) | Presses the Trigger Alert button once **any** alarm_control_panel entity - not just a Midnight Alarm area - has stayed `triggered` for a grace period you set. Point it at an Alarmo area to let Alarmo drive Midnight's real 911 dispatch while you keep using Alarmo's own UI for the alarm itself. |
 
 To use one: **Settings → Automations & Scenes → Blueprints → Import
 Blueprint**, paste that blueprint's GitHub link above, then create an
 automation from it like any other blueprint - pick the area (and whatever
 else the blueprint asks for) from the dropdowns.
 
-The last one listens for `midnight_alerts_arm_failed`, an event this
+"Retry Arm on Failed Arm" listens for `midnight_alerts_arm_failed`, an event this
 integration fires whenever a sensor configured without exit delay opens
 mid-arming and aborts it - the equivalent of Alarmo's own
 `alarmo_failed_to_arm` event. Its data includes `entity_id` (the area),

@@ -176,21 +176,30 @@ rules:
   docs-examples:
     status: done
     comment: >-
-      Five real, schema-validated blueprints now ship at
+      Six real, schema-validated blueprints now ship at
       blueprints/automation/midnight_alerts/ (notify-on-trigger,
       notify-on-state-change, re-arm-after-timeout,
-      auto-arm-away-when-everyone-leaves, retry-arm-on-failed-to-arm) -
-      the direct, working replacement for Alarmo's own built-in
-      notification, device-switching, and automatic-arming automation
-      features (checked against Alarmo's real README, not assumed).
+      auto-arm-away-when-everyone-leaves, retry-arm-on-failed-to-arm,
+      dispatch-on-trigger) - the direct, working replacement for Alarmo's
+      own built-in notification, device-switching, and automatic-arming
+      automation features (checked against Alarmo's real README, not
+      assumed). dispatch-on-trigger is the odd one out - not an Alarmo
+      feature replacement but a bridge the other way: it watches *any*
+      alarm_control_panel entity (an Alarmo area included) and presses
+      Midnight's own Trigger Alert button once it's stayed `triggered`
+      past a configurable grace period, so Alarmo (or anything else) can
+      drive Midnight's real 911 dispatch without needing Midnight's own
+      alarm engine at all.
       Verified end-to-end: each loaded and validated against
       AUTOMATION_BLUEPRINT_SCHEMA, and instantiated with real inputs to
       confirm the resulting automation config - including the templated
       alarm_arm_{{ rearm_mode }}/{{ retry_mode }} action names, the
       expand()/selectattr() presence-check template, the mobile_app
-      device-notify-action shape, and the two-trigger
-      condition:-trigger/id: branching - is correct.
-      docs/midnight_alerts.markdown links all five and explains the
+      device-notify-action shape, the two-trigger
+      condition:-trigger/id: branching, and dispatch-on-trigger's
+      for:-gated state trigger substituting correctly with a non-Midnight
+      (Alarmo) entity_id - is correct.
+      docs/midnight_alerts.markdown links all six and explains the
       Import Blueprint flow. Not yet published to the community blueprint
       exchange forum - importing directly by the GitHub link works today
       without that.
