@@ -156,7 +156,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
             return self.async_create_entry(
-                title="Midnight 911",
+                title="Midnight 911 Integration",
                 data=user_input,
                 options={CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
             )

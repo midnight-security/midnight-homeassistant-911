@@ -1,6 +1,6 @@
 {
   "domain": "midnight_alerts",
-  "name": "Midnight 911",
+  "name": "Midnight 911 Integration",
   "codeowners": ["@midnight-security/midnight-team"],
   "config_flow": true,
   "documentation": "https://github.com/midnight-security/midnight-homeassistant-911/blob/master/docs/midnight_alerts.markdown",

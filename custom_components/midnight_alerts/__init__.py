@@ -101,6 +101,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.entry_id)},
+        # Deliberately not "Midnight 911 Integration" (matching the entry
+        # title/manifest name below) - has_entity_name derives the button's
+        # auto-generated entity_id from this device name, and a longer name
+        # here means a longer, churned entity_id for every future install.
         name="Midnight 911",
         manufacturer="Midnight Security",
         entry_type=DeviceEntryType.SERVICE,

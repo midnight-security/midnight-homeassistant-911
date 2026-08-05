@@ -1,5 +1,5 @@
 ---
-title: Midnight 911
+title: Midnight 911 Integration
 description: Instructions on how to set up the Midnight 911 integration.
 ha_category:
   - Safety
@@ -101,7 +101,7 @@ outright. None of this runs at all if the key is left blank - there's
 nothing to validate yet.
 
 Left the key blank, or want to change either field later? Settings →
-Devices & services → Midnight 911 → **Reconfigure** opens the same form
+Devices & services → Midnight 911 Integration → **Reconfigure** opens the same form
 again, pre-filled with your current key (if any) and crash-reporting
 choice, and goes through the same location check if you provide a key.
 This is the one place to revisit either setting after initial setup -
@@ -112,9 +112,10 @@ Assistant automatically prompts for a new one - via a "Reauthenticate"
 notification on the integration's card, no need to remove and re-add it.
 The new key goes through the same location check described above.
 
-This creates the **Midnight 911** hub and the **Trigger Alert** button.
-Everything below is optional, added afterward from the hub's own **Add**
-menu (Settings → Devices & services → Midnight 911 → Add), and takes effect
+This creates the **Midnight 911** hub device and the **Trigger Alert**
+button, under the **Midnight 911 Integration** entry. Everything below is
+optional, added afterward from the entry's own **Add** menu (Settings →
+Devices & services → Midnight 911 Integration → Add), and takes effect
 immediately with no restart required.
 
 ### Adding an alarm area

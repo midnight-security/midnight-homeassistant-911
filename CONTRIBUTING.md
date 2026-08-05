@@ -30,7 +30,7 @@ Thank you for helping improve the Midnight 911 Home Assistant integration.
      server_port: 8124
    ```
 4. Open the printed URL, complete onboarding, then add the integration via
-   **Settings → Devices & services → Add Integration → "Midnight 911"**.
+   **Settings → Devices & services → Add Integration → "Midnight 911 Integration"**.
 
 Logs land in `.ha_dev_config/home-assistant.log`.
 

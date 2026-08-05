@@ -49,6 +49,8 @@ class MidnightAlertButton(ButtonEntity):
         self._attr_unique_id = f"{entry.entry_id}_trigger_alert"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
+            # Matches __init__.py's own device name - deliberately not
+            # "Midnight 911 Integration" (see the comment there).
             name="Midnight 911",
             manufacturer="Midnight Security",
             model="Alert System",
@@ -60,8 +62,8 @@ class MidnightAlertButton(ButtonEntity):
         if not self._client.is_configured:
             _LOGGER.error(
                 "Cannot send alert: no Midnight Alerts API key configured yet - "
-                "add one from Settings > Devices & services > Midnight 911 > "
-                "Reconfigure"
+                "add one from Settings > Devices & services > Midnight 911 "
+                "Integration > Reconfigure"
             )
             return
 

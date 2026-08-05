@@ -43,7 +43,7 @@ async def test_form_user_success(hass):
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Midnight 911"
+    assert result["title"] == "Midnight 911 Integration"
     assert result["data"] == {CONF_API_KEY: "test-key"}
     # not submitted at all - voluptuous fills the schema's own default
     assert result["options"] == {CONF_ENABLE_CRASH_REPORTING: False}
