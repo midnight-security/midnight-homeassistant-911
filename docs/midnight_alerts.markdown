@@ -86,7 +86,7 @@ During setup you'll be asked for:
 | Field | Description |
 | --- | --- |
 | API Key | The API key from your Midnight Security account. **Optional** - leave it blank to set up the alarm system (areas, sensors, PINs, arming/disarming) without dispatching to Midnight yet. Everything works locally either way; only the **Trigger Alert** button needs a key, and it logs a clear error instead of doing anything if pressed without one. |
-| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Configure, and re-asked (pre-filled with your current choice) if you ever have to reauthenticate. |
+| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Reconfigure; reauthenticating a rejected key leaves it untouched. |
 
 If you do provide a key, setup also verifies that Home Assistant's own
 configured location (Settings → System → General) is within 1000 feet of
@@ -100,10 +100,12 @@ Repair (Settings → System → Repairs) rather than breaking the integration
 outright. None of this runs at all if the key is left blank - there's
 nothing to validate yet.
 
-Left it blank, or need to change it later? Settings → Devices & services
-→ Midnight 911 → **Reconfigure** opens the same form again, with your
-current key (if any) and crash-reporting choice pre-filled, and goes
-through the same location check if you provide one.
+Left the key blank, or want to change either field later? Settings →
+Devices & services → Midnight 911 → **Reconfigure** opens the same form
+again, pre-filled with your current key (if any) and crash-reporting
+choice, and goes through the same location check if you provide a key.
+This is the one place to revisit either setting after initial setup -
+there's no separate Configure/options screen duplicating it.
 
 If a *stored* API key stops validating (revoked, rotated, etc.), Home
 Assistant automatically prompts for a new one - via a "Reauthenticate"
@@ -114,13 +116,6 @@ This creates the **Midnight 911** hub and the **Trigger Alert** button.
 Everything below is optional, added afterward from the hub's own **Add**
 menu (Settings → Devices & services → Midnight 911 → Add), and takes effect
 immediately with no restart required.
-
-### Configuration options
-
-You're asked about crash reporting during initial setup (see above), but it
-isn't a one-time choice: Settings → Devices & services → Midnight 911 →
-**Configure** reopens that same option any time, without removing the
-integration.
 
 ### Adding an alarm area
 

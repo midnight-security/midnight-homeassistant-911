@@ -15,7 +15,7 @@
         },
         "data_description": {
           "api_key": "Leave blank to set up the alarm system (areas, sensors, PINs) without dispatching to Midnight yet - add a key anytime later from Reconfigure.",
-          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Configure."
+          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Reconfigure."
         }
       }
     },
@@ -29,18 +29,6 @@
       "already_configured": "Device is already configured",
       "reauth_successful": "Re-authentication was successful",
       "reconfigure_successful": "Settings updated"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "data": {
-          "enable_crash_reporting": "Send crash reports to Midnight Security"
-        },
-        "data_description": {
-          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data."
-        }
-      }
     }
   },
   "config_subentries": {

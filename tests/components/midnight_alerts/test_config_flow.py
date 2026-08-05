@@ -213,8 +213,9 @@ async def test_reauth_still_invalid_shows_form_again(hass):
     assert entry.data == {CONF_API_KEY: "old-key"}
 
 
-async def test_reauth_suggests_the_current_crash_reporting_choice(hass):
-    """Reauth's form pre-fills the existing preference rather than resetting it."""
+async def test_reauth_does_not_show_or_touch_crash_reporting(hass):
+    """Crash reporting is only asked at setup - Configure is the one place to
+    revisit it afterward, not duplicated into reauth too (that was confusing)."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=DOMAIN,
@@ -224,42 +225,26 @@ async def test_reauth_suggests_the_current_crash_reporting_choice(hass):
     entry.add_to_hass(hass)
 
     result = await entry.start_reauth_flow(hass)
+    field_names = {str(marker) for marker in result["data_schema"].schema}
+    assert CONF_ENABLE_CRASH_REPORTING not in field_names
 
-    # add_suggested_values_to_schema stores this as field description
-    # metadata rather than the schema's own default, so it isn't observable
-    # via data_schema({}) - verified via the marker directly instead.
-    for marker in result["data_schema"].schema:
-        if str(marker) == CONF_ENABLE_CRASH_REPORTING:
-            assert marker.description == {"suggested_value": True}
-
-
-async def test_reauth_can_change_the_crash_reporting_choice(hass):
-    """A key swap can also flip the crash-reporting preference in the same step."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id=DOMAIN,
-        data={CONF_API_KEY: "old-key"},
-        options={CONF_ENABLE_CRASH_REPORTING: True},
-    )
-    entry.add_to_hass(hass)
-
-    result = await entry.start_reauth_flow(hass)
     with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: False},
+            result["flow_id"], {CONF_API_KEY: "new-key"}
         )
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data == {CONF_API_KEY: "new-key"}
-    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: False}
+    # untouched, not reset to the schema's own default
+    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: True}
 
 
 async def test_reconfigure_suggests_the_current_api_key_and_crash_reporting_choice(hass):
-    """Unlike reauth, reconfigure pre-fills the existing key - editing a working
-    entry (or filling in a previously-blank key) is the whole point here."""
+    """Reconfigure is the one place to revisit both fields after setup - it
+    pre-fills the existing key (editing, or filling in a previously-blank
+    one, is the whole point here) and the current crash-reporting choice."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=DOMAIN,
@@ -282,22 +267,24 @@ async def test_reconfigure_suggests_the_current_api_key_and_crash_reporting_choi
 async def test_reconfigure_can_add_a_previously_blank_api_key(hass):
     """The main path this exists for: add a key to an entry set up without one."""
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: ""}
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: ""},
+        options={CONF_ENABLE_CRASH_REPORTING: True},
     )
     entry.add_to_hass(hass)
 
     result = await entry.start_reconfigure_flow(hass)
     with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: True},
+            result["flow_id"], {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: False}
         )
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data == {CONF_API_KEY: "new-key"}
-    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: True}
+    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: False}
     # still the same entry, not a duplicate second one
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
 

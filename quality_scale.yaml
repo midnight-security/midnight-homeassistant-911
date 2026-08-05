@@ -89,9 +89,10 @@ rules:
   docs-configuration-parameters:
     status: done
     comment: >-
-      docs/midnight_alerts.markdown's "Configuration options" section
-      documents that enable_crash_reporting is revisitable anytime via
-      Configure, not just a first-run choice.
+      docs/midnight_alerts.markdown's Configuration section documents that
+      enable_crash_reporting is revisitable anytime via Reconfigure, not
+      just a first-run choice - there's no separate options step to
+      document instead.
   docs-installation-parameters:
     status: done
     comment: >-
@@ -270,9 +271,13 @@ rules:
     status: done
     comment: >-
       MidnightAlertsConfigFlow.async_step_reconfigure delegates to
-      async_step_user itself (same form/validation, same location check),
-      branching only at the end on self.source ==
-      config_entries.SOURCE_RECONFIGURE to call
+      async_step_user itself (same validation/location check, full form -
+      the one place to change the API key AND enable_crash_reporting after
+      setup; there's no separate options flow duplicating either one).
+      Reauth reuses the same method but gets an API-key-only schema
+      instead - it exists to fix a rejected key specifically, not to
+      re-litigate crash reporting. Branches only at the end on
+      self.source == config_entries.SOURCE_RECONFIGURE to call
       async_update_reload_and_abort instead of async_create_entry - the
       same pattern reauth already used. Lets a key be added (or changed)
       without removing and re-adding the entry - including filling one in

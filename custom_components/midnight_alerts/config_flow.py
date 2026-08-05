@@ -65,7 +65,11 @@ DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_ENABLE_CRASH_REPORTING, default=False): bool,
 })
 
-_ENTRY_SOURCES = (config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE)
+# Reauth exists to fix a rejected key specifically - crash reporting isn't
+# part of that. It's asked once at initial setup, and editable afterward in
+# exactly one place: reconfigure, alongside the API key (see
+# _user_data_schema). No separate Configure/options flow exists for it.
+API_KEY_ONLY_SCHEMA = vol.Schema({vol.Optional(CONF_API_KEY, default=""): str})
 
 
 class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -76,9 +80,12 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None) -> FlowResult:
         """Handle the initial step - also reused for reauth/reconfigure.
 
-        Crash reporting is asked here, alongside the API key, rather than
-        being something only discoverable later via Configure - opt-in
-        consent belongs in the same place the account itself is set up.
+        Crash reporting is asked here, alongside the API key, at both
+        initial setup and reconfigure (see _user_data_schema) - opt-in
+        consent belongs in the same place the account itself is set up,
+        and reconfigure is the one place to revisit it afterward. Not
+        reauth though: that exists to fix a rejected key specifically, and
+        there's no separate Configure/options flow to leave it out of.
 
         The API key itself is optional: the alarm engine (areas, sensors,
         PINs, arm/disarm/trigger) is entirely local and works fully without
@@ -93,8 +100,10 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Pulled out of user_input: it belongs in the entry's options
             # (an ordinary, changeable-anytime preference), not its data
-            # (the API key, which is what data_updates/data replace).
-            enable_crash_reporting = user_input.pop(CONF_ENABLE_CRASH_REPORTING, False)
+            # (the API key, which is what data_updates/data replace). None
+            # on reauth/reconfigure, where the field isn't shown at all -
+            # _async_finish leaves those entries' existing options alone.
+            enable_crash_reporting = user_input.pop(CONF_ENABLE_CRASH_REPORTING, None)
             api_key = user_input[CONF_API_KEY].strip()
             user_input[CONF_API_KEY] = api_key
 
@@ -130,9 +139,15 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _async_finish(
-        self, user_input: dict[str, Any], enable_crash_reporting: bool
+        self, user_input: dict[str, Any], enable_crash_reporting: bool | None
     ) -> FlowResult:
-        """Create the entry, or update+reload an existing one on reauth/reconfigure."""
+        """Create the entry, or update+reload an existing one on reauth/reconfigure.
+
+        enable_crash_reporting is None only on reauth - that's the one
+        source whose schema doesn't include the field, so the entry's
+        existing options carry over unchanged rather than being overwritten
+        with a value never asked for in that flow.
+        """
         if self.source == config_entries.SOURCE_REAUTH:
             entry = self._get_reauth_entry()
         elif self.source == config_entries.SOURCE_RECONFIGURE:
@@ -146,36 +161,41 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 options={CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
             )
 
+        options = (
+            entry.options
+            if enable_crash_reporting is None
+            else {**entry.options, CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting}
+        )
         return self.async_update_reload_and_abort(
-            entry,
-            data_updates=user_input,
-            options={**entry.options, CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
+            entry, data_updates=user_input, options=options
         )
 
     def _user_data_schema(self) -> vol.Schema:
-        """DATA_SCHEMA, pre-filled with current values on reauth/reconfigure.
+        """The full schema at initial setup and on reconfigure; API key alone on reauth.
 
         Reauth deliberately leaves the API key itself blank rather than
         suggesting the old one - it's here because that key stopped
         working, so re-showing it would just invite resubmitting the same
-        broken value. Reconfigure suggests it, since editing (or filling
-        in) an otherwise-working entry is the whole point of that flow.
+        broken value, and crash reporting isn't part of fixing a rejected
+        key. Reconfigure is the one place to revisit *both* fields after
+        setup - it suggests the current API key (editing, or filling in a
+        previously-blank one, is the whole point of that flow) and the
+        current crash-reporting choice.
         """
-        if self.source not in _ENTRY_SOURCES:
+        if self.source == config_entries.SOURCE_REAUTH:
+            return API_KEY_ONLY_SCHEMA
+        if self.source != config_entries.SOURCE_RECONFIGURE:
             return DATA_SCHEMA
-        entry = (
-            self._get_reauth_entry()
-            if self.source == config_entries.SOURCE_REAUTH
-            else self._get_reconfigure_entry()
+        entry = self._get_reconfigure_entry()
+        return self.add_suggested_values_to_schema(
+            DATA_SCHEMA,
+            {
+                CONF_API_KEY: entry.data.get(CONF_API_KEY, ""),
+                CONF_ENABLE_CRASH_REPORTING: entry.options.get(
+                    CONF_ENABLE_CRASH_REPORTING, False
+                ),
+            },
         )
-        suggested = {
-            CONF_ENABLE_CRASH_REPORTING: entry.options.get(
-                CONF_ENABLE_CRASH_REPORTING, False
-            )
-        }
-        if self.source == config_entries.SOURCE_RECONFIGURE:
-            suggested[CONF_API_KEY] = entry.data.get(CONF_API_KEY, "")
-        return self.add_suggested_values_to_schema(DATA_SCHEMA, suggested)
 
     async def async_step_reauth(self, entry_data) -> FlowResult:
         """Handle reauth when the stored API key stops validating.
@@ -190,6 +210,9 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(self, user_input=None) -> FlowResult:
         """Handle a user-initiated edit of the API key and/or crash reporting.
 
+        The one place to change either after initial setup - there's no
+        separate Configure/options flow duplicating this.
+
         Only ever called once, same as async_step_reauth above - the form
         it shows has step_id "user", so the frontend's actual submission
         routes straight to async_step_user, not back through here. Reuses
@@ -197,14 +220,6 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         the three sources is which branch of _async_finish they end up in.
         """
         return await self.async_step_user()
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> "MidnightAlertsOptionsFlow":
-        """Create the options flow."""
-        return MidnightAlertsOptionsFlow()
 
     @classmethod
     @callback
@@ -218,29 +233,6 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             SUBENTRY_TYPE_SENSOR_GROUP: SensorGroupSubentryFlowHandler,
             SUBENTRY_TYPE_ALARMO_IMPORT: AlarmoImportSubentryFlowHandler,
         }
-
-
-class MidnightAlertsOptionsFlow(config_entries.OptionsFlowWithReload):
-    """Handle options for Midnight Alerts."""
-
-    async def async_step_init(self, user_input=None) -> FlowResult:
-        """Manage the options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_ENABLE_CRASH_REPORTING,
-                        default=self.config_entry.options.get(
-                            CONF_ENABLE_CRASH_REPORTING, False
-                        ),
-                    ): bool,
-                }
-            ),
-        )
 
 
 # --- Midnight Alarm subentries: areas and users ---------------------------
