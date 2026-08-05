@@ -62,6 +62,7 @@ from .const import (
 
 DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_API_KEY): str,
+    vol.Required(CONF_ENABLE_CRASH_REPORTING, default=False): bool,
 })
 
 
@@ -71,10 +72,19 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step - also reused for reauth (see async_step_reauth)."""
+        """Handle the initial step - also reused for reauth (see async_step_reauth).
+
+        Crash reporting is asked here, alongside the API key, rather than
+        being something only discoverable later via Configure - opt-in
+        consent belongs in the same place the account itself is set up.
+        """
         errors = {}
 
         if user_input is not None:
+            # Pulled out of user_input: it belongs in the entry's options
+            # (an ordinary, changeable-anytime preference), not its data
+            # (the API key, which is what data_updates/data replace).
+            enable_crash_reporting = user_input.pop(CONF_ENABLE_CRASH_REPORTING, False)
             client = MidnightAlertsApiClient(
                 user_input[CONF_API_KEY], async_get_clientsession(self.hass)
             )
@@ -97,20 +107,37 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 elif location_match is False:
                     errors["base"] = "location_mismatch"
                 elif self.source == config_entries.SOURCE_REAUTH:
+                    reauth_entry = self._get_reauth_entry()
                     return self.async_update_reload_and_abort(
-                        self._get_reauth_entry(), data_updates=user_input
+                        reauth_entry,
+                        data_updates=user_input,
+                        options={
+                            **reauth_entry.options,
+                            CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting,
+                        },
                     )
                 else:
                     await self.async_set_unique_id(DOMAIN)
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
-                        title="Midnight 911", data=user_input
+                        title="Midnight 911",
+                        data=user_input,
+                        options={CONF_ENABLE_CRASH_REPORTING: enable_crash_reporting},
                     )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=DATA_SCHEMA,
+            data_schema=self._user_data_schema(),
             errors=errors,
+        )
+
+    def _user_data_schema(self) -> vol.Schema:
+        """DATA_SCHEMA, pre-filled with the current crash-reporting choice on reauth."""
+        if self.source != config_entries.SOURCE_REAUTH:
+            return DATA_SCHEMA
+        current = self._get_reauth_entry().options.get(CONF_ENABLE_CRASH_REPORTING, False)
+        return self.add_suggested_values_to_schema(
+            DATA_SCHEMA, {CONF_ENABLE_CRASH_REPORTING: current}
         )
 
     async def async_step_reauth(self, entry_data) -> FlowResult:

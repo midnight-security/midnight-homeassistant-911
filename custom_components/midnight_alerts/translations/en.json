@@ -10,7 +10,11 @@
     "step": {
       "user": {
         "data": {
-          "api_key": "API Key"
+          "api_key": "API Key",
+          "enable_crash_reporting": "Send crash reports to Midnight Security"
+        },
+        "data_description": {
+          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Configure."
         }
       }
     },

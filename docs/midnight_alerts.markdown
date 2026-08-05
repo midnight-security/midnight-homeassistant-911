@@ -86,6 +86,7 @@ During setup you'll be asked for:
 | Field | Description |
 | --- | --- |
 | API Key | The API key from your Midnight Security account. |
+| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Configure, and re-asked (pre-filled with your current choice) if you ever have to reauthenticate. |
 
 Setup also verifies that Home Assistant's own configured location (Settings
 → System → General) is within 1000 feet of the address on file for that API
@@ -110,12 +111,10 @@ immediately with no restart required.
 
 ### Configuration options
 
-Settings → Devices & services → Midnight 911 → **Configure** opens one
-option, changeable any time without removing the integration:
-
-| Field | Description |
-| --- | --- |
-| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. |
+You're asked about crash reporting during initial setup (see above), but it
+isn't a one-time choice: Settings → Devices & services → Midnight 911 →
+**Configure** reopens that same option any time, without removing the
+integration.
 
 ### Adding an alarm area
 

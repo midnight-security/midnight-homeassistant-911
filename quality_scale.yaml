@@ -78,14 +78,17 @@ rules:
   docs-configuration-parameters:
     status: done
     comment: >-
-      docs/midnight_alerts.markdown's new "Configuration options" section
-      documents the one options-flow field (enable_crash_reporting).
+      docs/midnight_alerts.markdown's "Configuration options" section
+      documents that enable_crash_reporting is revisitable anytime via
+      Configure, not just a first-run choice.
   docs-installation-parameters:
     status: done
     comment: >-
-      docs/midnight_alerts.markdown's Configuration section documents the
-      config flow's required field (API Key) and the location-verification
-      check performed at setup.
+      docs/midnight_alerts.markdown's Configuration section documents both
+      of the config flow's fields (API Key, and enable_crash_reporting -
+      asked at setup rather than buried in a separate options step, so
+      consent is explicit before any data leaves the house) and the
+      location-verification check performed at setup.
   entity-unavailable:
     status: exempt
     comment: >-

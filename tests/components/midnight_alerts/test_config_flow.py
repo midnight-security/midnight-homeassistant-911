@@ -9,7 +9,11 @@ from custom_components.midnight_alerts.api import (
     MidnightAlertsApiError,
     MidnightAlertsAuthError,
 )
-from custom_components.midnight_alerts.const import CONF_API_KEY, DOMAIN
+from custom_components.midnight_alerts.const import (
+    CONF_API_KEY,
+    CONF_ENABLE_CRASH_REPORTING,
+    DOMAIN,
+)
 
 VALIDATE = (
     "custom_components.midnight_alerts.config_flow."
@@ -41,6 +45,27 @@ async def test_form_user_success(hass):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Midnight 911"
     assert result["data"] == {CONF_API_KEY: "test-key"}
+    # not submitted at all - voluptuous fills the schema's own default
+    assert result["options"] == {CONF_ENABLE_CRASH_REPORTING: False}
+
+
+async def test_form_user_success_records_an_accepted_crash_reporting_choice(hass):
+    """Checking the box during setup is honored immediately, no separate Configure step needed."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "test-key", CONF_ENABLE_CRASH_REPORTING: True},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # the API key alone stays in data - crash reporting lives in options
+    assert result["data"] == {CONF_API_KEY: "test-key"}
+    assert result["options"] == {CONF_ENABLE_CRASH_REPORTING: True}
 
 
 async def test_form_location_mismatch(hass):
@@ -170,3 +195,47 @@ async def test_reauth_still_invalid_shows_form_again(hass):
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": "invalid_auth"}
     assert entry.data == {CONF_API_KEY: "old-key"}
+
+
+async def test_reauth_suggests_the_current_crash_reporting_choice(hass):
+    """Reauth's form pre-fills the existing preference rather than resetting it."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: "old-key"},
+        options={CONF_ENABLE_CRASH_REPORTING: True},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    # add_suggested_values_to_schema stores this as field description
+    # metadata rather than the schema's own default, so it isn't observable
+    # via data_schema({}) - verified via the marker directly instead.
+    for marker in result["data_schema"].schema:
+        if str(marker) == CONF_ENABLE_CRASH_REPORTING:
+            assert marker.description == {"suggested_value": True}
+
+
+async def test_reauth_can_change_the_crash_reporting_choice(hass):
+    """A key swap can also flip the crash-reporting preference in the same step."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: "old-key"},
+        options={CONF_ENABLE_CRASH_REPORTING: True},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: False},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data == {CONF_API_KEY: "new-key"}
+    assert entry.options == {CONF_ENABLE_CRASH_REPORTING: False}
