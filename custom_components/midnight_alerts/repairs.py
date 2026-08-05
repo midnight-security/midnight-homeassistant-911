@@ -6,14 +6,24 @@ Backs two issues:
   account tied to their API key (swap keys via reauth) or has already
   fixed the address/location on one side and just needs Midnight to
   notice.
-- `no_api_key` - one action: jump into Reconfigure to add one.
+- `no_api_key` - one action: start a reauth flow to add one.
+
+Both send the user to add/change their key via `entry.async_start_reauth`,
+never a reconfigure flow started from here - HA's frontend automatically
+surfaces an in-progress reauth flow as a "Reauthenticate" prompt on the
+integration card, but has no equivalent surfacing for a reconfigure flow
+started from outside the integrations page (confirmed by hand: the repair
+dialog just closes with no visible next step, leaving the entry flow
+sitting unreachable). Reusing reauth's already-working surfacing, even for
+an entry that never had a key at all, gets the user to the same
+API-key-only form either way.
 """
 from __future__ import annotations
 
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries, data_entry_flow
+from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
@@ -65,13 +75,13 @@ class LocationMismatchRepairFlow(RepairsFlow):
 
 
 class NoApiKeyRepairFlow(RepairsFlow):
-    """Confirm, then jump into Reconfigure to add the missing API key.
+    """Confirm, then start a reauth flow to add the missing API key.
 
     Only ever offers the one real action - unlike location_mismatch, there
     isn't a second reasonable resolution to choose between. Aborts (rather
-    than async_create_entry) for the same reason as above: opening
-    Reconfigure doesn't add the key by itself, so the issue must survive
-    until __init__.py's own async_delete_issue actually clears it.
+    than async_create_entry) for the same reason as above: starting reauth
+    doesn't add the key by itself, so the issue must survive until
+    __init__.py's own async_delete_issue actually clears it.
     """
 
     async def async_step_init(
@@ -90,16 +100,12 @@ class NoApiKeyRepairFlow(RepairsFlow):
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
-        """Confirm, then start a reconfigure flow for the underlying entry."""
+        """Confirm, then start the same reauth flow used for a rejected key."""
         if user_input is not None:
-            await self.hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={
-                    "source": config_entries.SOURCE_RECONFIGURE,
-                    "entry_id": self.data["entry_id"],
-                },
-            )
-            return self.async_abort(reason="reconfigure_started")
+            entry = self.hass.config_entries.async_get_entry(self.data["entry_id"])
+            if entry is not None:
+                entry.async_start_reauth(self.hass)
+            return self.async_abort(reason="reauth_started")
         return self.async_show_form(step_id="confirm", data_schema=vol.Schema({}))
 
 

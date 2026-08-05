@@ -2,7 +2,7 @@
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.components.repairs import repairs_flow_manager
-from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_REAUTH
+from homeassistant.config_entries import SOURCE_REAUTH
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
@@ -112,24 +112,29 @@ async def test_no_api_key_fix_flow_shows_a_confirm_step(hass):
     assert result["step_id"] == "confirm"
 
 
-async def test_no_api_key_confirm_starts_a_reconfigure_flow_and_leaves_the_issue(hass):
+async def test_no_api_key_confirm_starts_a_reauth_flow_and_leaves_the_issue(hass):
+    """Reauth, not reconfigure: HA's frontend reliably surfaces an in-progress
+    reauth flow as a "Reauthenticate" prompt, but has no equivalent surfacing
+    for a reconfigure flow started from outside the integrations page - a
+    real bug hit by hand before switching this over (the repair dialog just
+    closed with no visible next step)."""
     entry = await _entry_without_api_key(hass)
 
     manager, result = await _start_fix_flow(hass, NO_API_KEY_ISSUE_ID)
     result = await manager.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "reconfigure_started"
+    assert result["reason"] == "reauth_started"
 
-    reconfigure_flows = [
+    reauth_flows = [
         flow
         for flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
-        if flow["context"]["source"] == SOURCE_RECONFIGURE
+        if flow["context"]["source"] == SOURCE_REAUTH
         and flow["context"]["entry_id"] == entry.entry_id
     ]
-    assert len(reconfigure_flows) == 1
+    assert len(reauth_flows) == 1
 
-    # Opening reconfigure doesn't add a key by itself - the issue must
-    # survive until a real key is actually saved, not be wiped out just
-    # because this flow finished.
+    # Starting reauth doesn't add a key by itself - the issue must survive
+    # until a real key is actually saved, not be wiped out just because
+    # this flow finished.
     issue_registry = ir.async_get(hass)
     assert issue_registry.async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None

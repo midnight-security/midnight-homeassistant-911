@@ -85,7 +85,7 @@ During setup you'll be asked for:
 
 | Field | Description |
 | --- | --- |
-| API Key | The API key from your Midnight Security account. **Optional** - leave it blank to set up the alarm system (areas, sensors, PINs, arming/disarming) without dispatching to Midnight yet. Everything works locally either way; only the **Trigger Alert** button needs a key, and it logs a clear error instead of doing anything if pressed without one. Leaving it blank raises a Repair (Settings → System → Repairs) prompting you to add one when you're ready - it clears itself once a working key is saved. |
+| API Key | The API key from your Midnight Security account. **Optional** - leave it blank to set up the alarm system (areas, sensors, PINs, arming/disarming) without dispatching to Midnight yet. Everything works locally either way; only the **Trigger Alert** button needs a key, and it logs a clear error instead of doing anything if pressed without one. Leaving it blank raises a Repair (Settings → System → Repairs) prompting you to add one when you're ready - confirming it opens the same "Reauthenticate" prompt used for a rejected key, and the issue clears itself once a working key is saved. |
 | Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Reconfigure; reauthenticating a rejected key leaves it untouched. |
 
 If you do provide a key, setup also verifies that Home Assistant's own
