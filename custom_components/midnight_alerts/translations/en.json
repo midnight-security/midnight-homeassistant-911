@@ -14,6 +14,7 @@
           "enable_crash_reporting": "Send crash reports to Midnight Security"
         },
         "data_description": {
+          "api_key": "Leave blank to set up the alarm system (areas, sensors, PINs) without dispatching to Midnight yet - add a key anytime later from Reconfigure.",
           "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Configure."
         }
       }
@@ -26,7 +27,8 @@
     },
     "abort": {
       "already_configured": "Device is already configured",
-      "reauth_successful": "Re-authentication was successful"
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Settings updated"
     }
   },
   "options": {
@@ -234,12 +236,11 @@
   "issues": {
     "location_mismatch": {
       "title": "Home Assistant's location doesn't match the address on file",
-      "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under [Settings > System > General](/config/general), or update the address on your midnight.security account, then select **Fix** below.",
       "fix_flow": {
         "step": {
           "init": {
             "title": "Fix the location mismatch",
-            "description": "Which side needs fixing?",
+            "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under [Settings > System > General](/config/general), or update the address on your midnight.security account. Which side needs fixing?",
             "menu_options": {
               "update_key": "Swap in a different API key",
               "recheck": "I've already fixed the address or Home Assistant's location - recheck now"
