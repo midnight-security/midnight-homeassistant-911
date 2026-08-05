@@ -1,20 +1,24 @@
 """Repair flow for Midnight Alerts.
 
-Currently only backs the `location_mismatch` issue - offers a menu instead
-of a single "Fix" action, since there isn't one right answer: the user
-either needs to update the account tied to their API key (swap keys via
-reauth) or has already fixed the address/location on one side and just
-needs Midnight to notice.
+Backs two issues:
+- `location_mismatch` - offers a menu instead of a single "Fix" action,
+  since there isn't one right answer: the user either needs to update the
+  account tied to their API key (swap keys via reauth) or has already
+  fixed the address/location on one side and just needs Midnight to
+  notice.
+- `no_api_key` - one action: jump into Reconfigure to add one.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from homeassistant import data_entry_flow
+import voluptuous as vol
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 
+from . import NO_API_KEY_ISSUE_ID
 from .const import DOMAIN
 
 
@@ -60,10 +64,51 @@ class LocationMismatchRepairFlow(RepairsFlow):
         return self.async_abort(reason="resolved")
 
 
+class NoApiKeyRepairFlow(RepairsFlow):
+    """Confirm, then jump into Reconfigure to add the missing API key.
+
+    Only ever offers the one real action - unlike location_mismatch, there
+    isn't a second reasonable resolution to choose between. Aborts (rather
+    than async_create_entry) for the same reason as above: opening
+    Reconfigure doesn't add the key by itself, so the issue must survive
+    until __init__.py's own async_delete_issue actually clears it.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Delegate to async_step_confirm.
+
+        The flow manager passes this issue's `data` (e.g. {"issue_id":
+        ...}) as user_input on this very first call, not None - checking
+        `user_input is not None` here would treat that as an immediate
+        submission. async_step_confirm starts clean instead, same as HA
+        core's own ConfirmRepairFlow.
+        """
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Confirm, then start a reconfigure flow for the underlying entry."""
+        if user_input is not None:
+            await self.hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={
+                    "source": config_entries.SOURCE_RECONFIGURE,
+                    "entry_id": self.data["entry_id"],
+                },
+            )
+            return self.async_abort(reason="reconfigure_started")
+        return self.async_show_form(step_id="confirm", data_schema=vol.Schema({}))
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
     data: dict[str, Any] | None,
 ) -> RepairsFlow:
-    """Return the repair flow for a given issue id - only one exists today."""
+    """Return the repair flow for a given issue id."""
+    if issue_id == NO_API_KEY_ISSUE_ID:
+        return NoApiKeyRepairFlow()
     return LocationMismatchRepairFlow()

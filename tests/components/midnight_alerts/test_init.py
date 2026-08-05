@@ -6,7 +6,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID
+from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID, NO_API_KEY_ISSUE_ID
 from custom_components.midnight_alerts.api import (
     MidnightAlertsApiError,
     MidnightAlertsAuthError,
@@ -104,7 +104,9 @@ async def test_reload_after_location_fixed_clears_repair_issue(hass):
 
 
 async def test_setup_entry_without_api_key_loads_without_validating(hass):
-    """No key yet is a supported state - setup succeeds, nothing gets validated."""
+    """No key yet is a supported state - setup succeeds, nothing gets validated,
+    but a no_api_key repair issue prompts finishing setup rather than staying
+    silent about it."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
     entry.add_to_hass(hass)
 
@@ -115,8 +117,41 @@ async def test_setup_entry_without_api_key_loads_without_validating(hass):
     assert entry.state is ConfigEntryState.LOADED
     device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
     assert device is not None
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
+    issue_registry = ir.async_get(hass)
+    assert issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is None
+    assert issue_registry.async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None
+
+
+async def test_setup_entry_with_api_key_has_no_no_api_key_issue(hass):
+    """A key present from the start never raises the issue at all."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
+    entry.add_to_hass(hass)
+
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result())):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID)
     assert issue is None
+
+
+async def test_reload_after_adding_api_key_clears_no_api_key_issue(hass):
+    """Adding a key (e.g. via the no_api_key repair's Reconfigure) and reloading
+    clears the issue, same as fixing a location mismatch does."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
+    entry.add_to_hass(hass)
+
+    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None
+
+    hass.config_entries.async_update_entry(entry, data={CONF_API_KEY: "new-key"})
+    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result())):
+        await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is None
 
 
 async def test_unload_entry(hass):

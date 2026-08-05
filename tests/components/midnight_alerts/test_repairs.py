@@ -1,14 +1,14 @@
-"""Tests for the location_mismatch repair flow."""
+"""Tests for the location_mismatch and no_api_key repair flows."""
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.components.repairs import repairs_flow_manager
-from homeassistant.config_entries import SOURCE_REAUTH
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_REAUTH
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID
+from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID, NO_API_KEY_ISSUE_ID
 from custom_components.midnight_alerts.const import CONF_API_KEY, DOMAIN
 
 VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
@@ -24,12 +24,19 @@ async def _mismatched_entry(hass) -> MockConfigEntry:
     return entry
 
 
-async def _start_fix_flow(hass):
+async def _entry_without_api_key(hass) -> MockConfigEntry:
+    """A config entry set up with no key, no_api_key issue already raised."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def _start_fix_flow(hass, issue_id=LOCATION_MISMATCH_ISSUE_ID):
     await async_setup_component(hass, "repairs", {})
     manager = repairs_flow_manager(hass)
-    return manager, await manager.async_init(
-        DOMAIN, data={"issue_id": LOCATION_MISMATCH_ISSUE_ID}
-    )
+    return manager, await manager.async_init(DOMAIN, data={"issue_id": issue_id})
 
 
 async def test_fix_flow_offers_update_key_and_recheck(hass):
@@ -95,3 +102,34 @@ async def test_recheck_leaves_a_still_mismatched_issue_in_place(hass):
     assert result["reason"] == "still_mismatched"
     issue_registry = ir.async_get(hass)
     assert issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+
+
+async def test_no_api_key_fix_flow_shows_a_confirm_step(hass):
+    await _entry_without_api_key(hass)
+
+    _manager, result = await _start_fix_flow(hass, NO_API_KEY_ISSUE_ID)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+
+
+async def test_no_api_key_confirm_starts_a_reconfigure_flow_and_leaves_the_issue(hass):
+    entry = await _entry_without_api_key(hass)
+
+    manager, result = await _start_fix_flow(hass, NO_API_KEY_ISSUE_ID)
+    result = await manager.async_configure(result["flow_id"], {})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_started"
+
+    reconfigure_flows = [
+        flow
+        for flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+        if flow["context"]["source"] == SOURCE_RECONFIGURE
+        and flow["context"]["entry_id"] == entry.entry_id
+    ]
+    assert len(reconfigure_flows) == 1
+
+    # Opening reconfigure doesn't add a key by itself - the issue must
+    # survive until a real key is actually saved, not be wiped out just
+    # because this flow finished.
+    issue_registry = ir.async_get(hass)
+    assert issue_registry.async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None

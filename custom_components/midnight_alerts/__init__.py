@@ -16,6 +16,7 @@ from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlerts
 from .const import CONF_ENABLE_CRASH_REPORTING, DOMAIN, CONF_API_KEY
 
 LOCATION_MISMATCH_ISSUE_ID = "location_mismatch"
+NO_API_KEY_ISSUE_ID = "no_api_key"
 
 PLATFORMS = ["button", "alarm_control_panel"]
 
@@ -40,14 +41,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
         release=str(integration.version) if integration.version else None,
     )
 
-    # No key yet is a valid, supported state, not an error: the alarm
+    # No key yet is a valid, supported state, not a setup failure: the alarm
     # engine (areas, sensors, PINs, arm/disarm/trigger) is entirely local
     # and works fully without one - only the Trigger Alert button actually
     # calls Midnight's API, and it already handles being unconfigured
     # gracefully (see button.py). There's nothing to validate or check
-    # location for without a key, so skip straight past both - and clear
-    # any stale mismatch issue from a key that was since removed.
+    # location for without a key, so skip straight past both - but it's
+    # still surfaced as a repair issue, since silently doing nothing would
+    # leave a user who skipped the key at setup with no indication they
+    # still need to add one before Trigger Alert actually does anything.
     if client.is_configured:
+        ir.async_delete_issue(hass, DOMAIN, NO_API_KEY_ISSUE_ID)
         try:
             result = await client.async_validate(
                 latitude=hass.config.latitude, longitude=hass.config.longitude
@@ -77,6 +81,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
             ir.async_delete_issue(hass, DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
     else:
         ir.async_delete_issue(hass, DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            NO_API_KEY_ISSUE_ID,
+            is_fixable=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=NO_API_KEY_ISSUE_ID,
+            data={"entry_id": entry.entry_id},
+        )
 
     entry.runtime_data = MidnightAlertsData(client=client)
 

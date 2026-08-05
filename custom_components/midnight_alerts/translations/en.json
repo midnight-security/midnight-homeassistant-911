@@ -241,6 +241,20 @@
           "resolved": "Locations now match. Issue resolved."
         }
       }
+    },
+    "no_api_key": {
+      "title": "Midnight 911 can't send alerts yet - no API key",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Add your API key",
+            "description": "This instance was set up without an API key, so the **Trigger Alert** button won't do anything yet - the alarm system itself (areas, sensors, PINs, arming/disarming) already works fully regardless. Select **Submit** to open Reconfigure and add one."
+          }
+        },
+        "abort": {
+          "reconfigure_started": "Opening Reconfigure - this issue clears itself once a working key is saved."
+        }
+      }
     }
   }
 }

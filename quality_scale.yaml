@@ -289,13 +289,19 @@ rules:
   repair-issues:
     status: done
     comment: >-
-      __init__.py raises a "location_mismatch" repair issue (is_fixable
-      False, severity ERROR) whenever this Home Assistant instance's own
-      configured location drifts more than 1000 feet from the address on
-      file for the API key, checked on every entry load - and clears it
-      automatically once fixed. The initial config flow blocks setup
-      outright on the same mismatch; the repair issue is specifically for
-      catching drift *after* a working setup.
+      __init__.py raises two issues, both is_fixable=True with a matching
+      repairs.py fix flow, both severity ERROR, both cleared automatically
+      by __init__.py itself once actually resolved (never by the fix flow
+      completing - see repairs.py's own docstrings on why). "location_mismatch"
+      fires whenever this Home Assistant instance's own configured location
+      drifts more than 1000 feet from the address on file for the API key,
+      checked on every entry load; the initial config flow blocks setup
+      outright on the same mismatch, so this one's specifically for catching
+      drift *after* a working setup. "no_api_key" fires whenever the entry
+      is loaded with no key configured at all (a supported state, not a
+      setup failure - the alarm engine works fully locally regardless) so a
+      user who skipped the key at setup isn't left with zero indication
+      Trigger Alert won't do anything until they add one.
   stale-devices:
     status: done
     comment: >-
