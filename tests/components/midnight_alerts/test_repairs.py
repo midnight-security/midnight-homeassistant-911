@@ -138,3 +138,46 @@ async def test_no_api_key_confirm_starts_a_reauth_flow_and_leaves_the_issue(hass
     # this flow finished.
     issue_registry = ir.async_get(hass)
     assert issue_registry.async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None
+
+
+async def test_no_api_key_confirm_reports_already_in_progress_instead_of_a_false_success(hass):
+    """entry.async_start_reauth silently no-ops if a reauth/reconfigure flow is
+    already active - the real bug hit by hand: an earlier confirm click had
+    already started one, and clicking it again claimed success while doing
+    nothing, because the code never checked whether start_reauth actually did
+    anything before reporting reauth_started."""
+    entry = await _entry_without_api_key(hass)
+    entry.async_start_reauth(hass)
+    await hass.async_block_till_done()
+
+    manager, result = await _start_fix_flow(hass, NO_API_KEY_ISSUE_ID)
+    result = await manager.async_configure(result["flow_id"], {})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_in_progress"
+
+    # still only the one flow from the direct async_start_reauth call above -
+    # confirming this really was a no-op, not a second flow
+    reauth_flows = [
+        flow
+        for flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+        if flow["context"]["source"] == SOURCE_REAUTH
+        and flow["context"]["entry_id"] == entry.entry_id
+    ]
+    assert len(reauth_flows) == 1
+
+
+async def test_update_key_reports_reauth_started_even_if_entry_was_removed(hass):
+    """Defensive edge case: the entry could vanish between the issue being
+    raised and the user acting on it. Shouldn't crash - just nothing to
+    start reauth for."""
+    entry = await _mismatched_entry(hass)
+    manager, result = await _start_fix_flow(hass)
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await manager.async_configure(
+        result["flow_id"], {"next_step_id": "update_key"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_started"

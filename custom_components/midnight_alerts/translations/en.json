@@ -237,6 +237,7 @@
         },
         "abort": {
           "reauth_started": "Re-authentication started - reopen this repair once you've entered the new key to confirm it resolved the mismatch.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 for a Reauthenticate prompt, or wait a few minutes for it to expire and try again.",
           "still_mismatched": "Still more than 1000 feet apart - double check the address on your midnight.security account and Home Assistant's location, then try again.",
           "resolved": "Locations now match. Issue resolved."
         }
@@ -252,7 +253,8 @@
           }
         },
         "abort": {
-          "reauth_started": "Opening the form to add your key - this issue clears itself once a working one is saved."
+          "reauth_started": "Opening the form to add your key - this issue clears itself once a working one is saved.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 for a Reauthenticate prompt, or wait a few minutes for it to expire and try again."
         }
       }
     }

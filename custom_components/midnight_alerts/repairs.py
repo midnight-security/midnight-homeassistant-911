@@ -25,11 +25,32 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 
 from . import NO_API_KEY_ISSUE_ID
 from .const import DOMAIN
+
+
+def _async_start_reauth_and_get_reason(hass: HomeAssistant, entry_id: str) -> str:
+    """Start reauth for entry_id, unless one's already in progress.
+
+    entry.async_start_reauth silently no-ops if a reauth *or* reconfigure
+    flow is already active for the entry (config_entries.py's own guard,
+    to avoid stacking duplicate flows) - without checking first, callers
+    would report "opening the form" even when nothing actually happened.
+    Caught this by hand: an earlier, since-fixed version of this repair
+    started a reconfigure flow that nothing ever surfaced or completed, and
+    it sat active long enough to silently block a later reauth attempt.
+    """
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None:
+        return "reauth_started"
+    if any(entry.async_get_active_flows(hass, {SOURCE_REAUTH, SOURCE_RECONFIGURE})):
+        return "already_in_progress"
+    entry.async_start_reauth(hass)
+    return "reauth_started"
 
 
 class LocationMismatchRepairFlow(RepairsFlow):
@@ -57,10 +78,8 @@ class LocationMismatchRepairFlow(RepairsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
         """Start the same reauth flow used when the key itself is rejected."""
-        entry = self.hass.config_entries.async_get_entry(self.data["entry_id"])
-        if entry is not None:
-            entry.async_start_reauth(self.hass)
-        return self.async_abort(reason="reauth_started")
+        reason = _async_start_reauth_and_get_reason(self.hass, self.data["entry_id"])
+        return self.async_abort(reason=reason)
 
     async def async_step_recheck(
         self, user_input: dict[str, Any] | None = None
@@ -102,10 +121,8 @@ class NoApiKeyRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         """Confirm, then start the same reauth flow used for a rejected key."""
         if user_input is not None:
-            entry = self.hass.config_entries.async_get_entry(self.data["entry_id"])
-            if entry is not None:
-                entry.async_start_reauth(self.hass)
-            return self.async_abort(reason="reauth_started")
+            reason = _async_start_reauth_and_get_reason(self.hass, self.data["entry_id"])
+            return self.async_abort(reason=reason)
         return self.async_show_form(step_id="confirm", data_schema=vol.Schema({}))
 
 
