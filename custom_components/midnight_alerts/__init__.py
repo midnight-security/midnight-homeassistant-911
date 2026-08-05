@@ -60,9 +60,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
             hass,
             DOMAIN,
             LOCATION_MISMATCH_ISSUE_ID,
-            is_fixable=False,
+            is_fixable=True,
             severity=ir.IssueSeverity.ERROR,
             translation_key=LOCATION_MISMATCH_ISSUE_ID,
+            data={"entry_id": entry.entry_id},
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, LOCATION_MISMATCH_ISSUE_ID)

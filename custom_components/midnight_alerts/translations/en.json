@@ -230,7 +230,24 @@
   "issues": {
     "location_mismatch": {
       "title": "Home Assistant's location doesn't match the address on file",
-      "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under Settings > System > General, or update the address on your midnight.security account, then reload this integration."
+      "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under [Settings > System > General](/config/general), or update the address on your midnight.security account, then select **Fix** below.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix the location mismatch",
+            "description": "Which side needs fixing?",
+            "menu_options": {
+              "update_key": "Swap in a different API key",
+              "recheck": "I've already fixed the address or Home Assistant's location - recheck now"
+            }
+          }
+        },
+        "abort": {
+          "reauth_started": "Re-authentication started - reopen this repair once you've entered the new key to confirm it resolved the mismatch.",
+          "still_mismatched": "Still more than 1000 feet apart - double check the address on your midnight.security account and Home Assistant's location, then try again.",
+          "resolved": "Locations now match. Issue resolved."
+        }
+      }
     }
   }
 }
