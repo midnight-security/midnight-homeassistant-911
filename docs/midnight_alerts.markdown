@@ -219,12 +219,34 @@ sensor groups, sensors, and automations found) before you confirm.
 - Running the import again is a safe no-op — nothing already imported gets
   duplicated.
 
+### The "All Areas" entity
+
+As soon as at least one area is configured, an extra **All Areas**
+`alarm_control_panel` entity appears on the **Midnight 911** hub device.
+Arming or disarming it **overrides every area at once**: each area is
+forced straight into that state immediately, skipping its own exit delay
+and any arming/pending/triggered cycle already in progress. Its displayed
+state always reflects reality — if any area is triggered that shows
+first, then pending, then arming, then (only if every area happens to
+share the exact same armed mode) that mode; anything else, including a mix
+of armed and disarmed areas, shows as disarmed rather than claim
+protection that isn't actually uniform.
+
+A PIN entered on **All Areas** is checked once, against users configured
+with no per-area restriction at all — someone limited to specific areas
+isn't authorized to command the whole home through this entity, even
+though the same PIN still works on their own permitted area(s)
+individually. If every configured user happens to be area-restricted, no
+PIN will ever satisfy **All Areas**, even though it still shows as
+requiring one.
+
 ## Supported functions
 
 | Entity | Type | Description |
 | --- | --- | --- |
 | Trigger Alert | Button | Sends an alert to Midnight's monitoring center for the address on your account. |
 | *(area name)* | Alarm Control Panel | One per configured area. Supports arm away/home/night/vacation/custom bypass (per what's enabled on that area), disarm, and manual trigger, each optionally requiring a user's PIN. |
+| All Areas | Alarm Control Panel | Present once at least one area exists. Overrides every area's arm/disarm state at once, bypassing each area's own exit delay; PIN-restricted to users with no per-area limit. |
 
 ## Data updates
 
@@ -441,3 +463,6 @@ Security account or monitoring plan — manage or cancel that separately at
   "debounce" options only apply to sensors newly attached in that same
   submission — changing them for an already-attached sensor means
   detaching and re-attaching it.
+- The **All Areas** entity's arm/disarm always skips every area's exit
+  delay - there's no "override, but still walk out the door first" mode.
+  If you need a walk-out delay, arm each area individually instead.

@@ -173,3 +173,30 @@ def shorten_pending(fsm: AreaFsm, *, now: datetime, entry_delay: int) -> AreaFsm
 def disarm() -> AreaFsm:
     """Disarm always resets to a clean, fully-settled DISARMED FSM."""
     return AreaFsm()
+
+
+def aggregate_state(
+    states: list[AlarmControlPanelState],
+) -> AlarmControlPanelState:
+    """Combine every area's current state into a single all-areas reading.
+
+    TRIGGERED beats PENDING beats ARMING beats a single shared armed mode -
+    mirrors how a real panel's master zone reports the most urgent thing
+    happening anywhere in the home. If every area agrees (including all
+    DISARMED), that shared state wins. Otherwise - some areas armed, some
+    not, or armed in different modes - there's no single mode that would
+    honestly describe the whole home, so this falls back to DISARMED rather
+    than claim protection that isn't actually uniform everywhere.
+    """
+    if not states:
+        return AlarmControlPanelState.DISARMED
+    for urgent in (
+        AlarmControlPanelState.TRIGGERED,
+        AlarmControlPanelState.PENDING,
+        AlarmControlPanelState.ARMING,
+    ):
+        if urgent in states:
+            return urgent
+    if all(state == states[0] for state in states):
+        return states[0]
+    return AlarmControlPanelState.DISARMED

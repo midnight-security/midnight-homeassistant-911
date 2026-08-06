@@ -6,6 +6,7 @@ from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from custom_components.midnight_alerts.alarm_state import (
     AreaFsm,
     abort_arming,
+    aggregate_state,
     disarm,
     display_state,
     hold_for_close,
@@ -189,3 +190,72 @@ def test_disarm_resets_everything():
     )
     fsm = disarm()
     assert fsm == AreaFsm()
+
+
+def test_aggregate_state_empty_is_disarmed():
+    assert aggregate_state([]) == AlarmControlPanelState.DISARMED
+
+
+def test_aggregate_state_all_disarmed():
+    assert (
+        aggregate_state([AlarmControlPanelState.DISARMED] * 3)
+        == AlarmControlPanelState.DISARMED
+    )
+
+
+def test_aggregate_state_all_same_armed_mode():
+    assert (
+        aggregate_state(
+            [AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_AWAY]
+        )
+        == AlarmControlPanelState.ARMED_AWAY
+    )
+
+
+def test_aggregate_state_mixed_armed_modes_falls_back_to_disarmed():
+    assert (
+        aggregate_state(
+            [AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_HOME]
+        )
+        == AlarmControlPanelState.DISARMED
+    )
+
+
+def test_aggregate_state_one_armed_one_disarmed_falls_back_to_disarmed():
+    assert (
+        aggregate_state(
+            [AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.DISARMED]
+        )
+        == AlarmControlPanelState.DISARMED
+    )
+
+
+def test_aggregate_state_triggered_beats_everything():
+    assert (
+        aggregate_state(
+            [
+                AlarmControlPanelState.ARMED_AWAY,
+                AlarmControlPanelState.PENDING,
+                AlarmControlPanelState.TRIGGERED,
+            ]
+        )
+        == AlarmControlPanelState.TRIGGERED
+    )
+
+
+def test_aggregate_state_pending_beats_arming():
+    assert (
+        aggregate_state(
+            [AlarmControlPanelState.ARMING, AlarmControlPanelState.PENDING]
+        )
+        == AlarmControlPanelState.PENDING
+    )
+
+
+def test_aggregate_state_arming_beats_uniform_armed_mode():
+    assert (
+        aggregate_state(
+            [AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMING]
+        )
+        == AlarmControlPanelState.ARMING
+    )

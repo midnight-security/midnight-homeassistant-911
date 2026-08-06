@@ -89,9 +89,18 @@ def _enabled_users(entry: ConfigEntry) -> list[ConfigSubentry]:
 
 
 def _eligible_users(
-    entry: ConfigEntry, *, area_subentry_id: str, action: Literal["arm", "disarm"]
+    entry: ConfigEntry,
+    *,
+    area_subentry_id: str | None,
+    action: Literal["arm", "disarm"],
 ) -> list[ConfigSubentry]:
-    """Enabled users additionally permitted for this specific action/area."""
+    """Enabled users additionally permitted for this specific action/area.
+
+    `area_subentry_id=None` is the master (all-areas) action: only a user
+    with no area_limit at all - i.e. already permitted everywhere - is
+    eligible. A user restricted to specific areas is deliberately never
+    eligible for master, regardless of which areas are on their list.
+    """
     can_field = CONF_CAN_ARM if action == "arm" else CONF_CAN_DISARM
     return [
         subentry
@@ -99,7 +108,10 @@ def _eligible_users(
         if subentry.data.get(can_field, True)
         and (
             not subentry.data.get(CONF_AREA_LIMIT)
-            or area_subentry_id in subentry.data[CONF_AREA_LIMIT]
+            or (
+                area_subentry_id is not None
+                and area_subentry_id in subentry.data[CONF_AREA_LIMIT]
+            )
         )
     ]
 
@@ -142,10 +154,13 @@ async def async_validate_code(
     entry: ConfigEntry,
     *,
     code: str | None,
-    area_subentry_id: str,
+    area_subentry_id: str | None,
     action: Literal["arm", "disarm"],
 ) -> CodeMatch | None:
     """Resolve `code` to a permitted user for this area, or raise.
+
+    `area_subentry_id=None` validates for the master (all-areas) entity
+    instead of one specific area - see `_eligible_users`.
 
     Returns None only when no enabled users exist at all (no PIN required).
     If any enabled user exists but none of them are eligible for this

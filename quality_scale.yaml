@@ -162,7 +162,10 @@ rules:
       entry_type=DeviceEntryType.SERVICE. Each area is its own child device
       (identifiers keyed by entry_id + subentry_id) linked back to the main
       "Midnight 911" hub device via via_device, matching ntfy's pattern for
-      multiple subentry-scoped devices under one config entry.
+      multiple subentry-scoped devices under one config entry. The All Areas
+      master entity (alarm_control_panel.py's MidnightAlarmMaster) isn't a
+      subentry of its own, so it lives directly on the hub device alongside
+      the button instead of getting a device of its own.
   diagnostics:
     status: done
     comment: >-
@@ -222,9 +225,10 @@ rules:
   docs-supported-functions:
     status: done
     comment: >-
-      Table now lists both entities - the Trigger Alert button and the
-      per-area Alarm Control Panel - instead of stating the button is
-      "the integration's only entity" (no longer true).
+      Table lists all three entities - the Trigger Alert button, the
+      per-area Alarm Control Panel, and the All Areas override entity -
+      instead of stating the button is "the integration's only entity"
+      (no longer true).
   docs-troubleshooting:
     status: done
     comment: >-
@@ -266,7 +270,10 @@ rules:
       hardcoded _attr_name, with entity.button.trigger_alert.name in
       translations/en.json. The alarm area entity correctly needs none -
       _attr_name = None makes it the device's unnamed primary entity, the
-      same convention used throughout core (e.g. ntfy's own entities).
+      same convention used throughout core (e.g. ntfy's own entities). The
+      All Areas master entity shares the hub device with the button, so it
+      needs an explicit name too - _attr_translation_key ("all_areas"),
+      entity.alarm_control_panel.all_areas.name in translations/en.json.
   exception-translations:
     status: done
     comment: >-

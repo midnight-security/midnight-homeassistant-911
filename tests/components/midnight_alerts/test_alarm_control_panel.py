@@ -306,22 +306,30 @@ async def test_wrong_code_is_rejected_and_state_unchanged(hass):
     assert hass.states.get(entity_id).state == AlarmControlPanelState.DISARMED
 
 
-async def _add_user(hass, entry, *, is_override_code: bool) -> None:
-    hashed = await pin.async_hash_code(hass, "1234")
+async def _add_user(
+    hass,
+    entry,
+    *,
+    is_override_code: bool,
+    name: str = "Alice",
+    code: str = "1234",
+    area_limit: list[str] | None = None,
+) -> None:
+    hashed = await pin.async_hash_code(hass, code)
     hass.config_entries.async_add_subentry(
         entry,
         ConfigSubentry(
             data={
-                CONF_NAME: "Alice",
+                CONF_NAME: name,
                 "code": hashed,
                 "can_arm": True,
                 "can_disarm": True,
                 "is_override_code": is_override_code,
-                "area_limit": [],
+                "area_limit": area_limit or [],
                 "enabled": True,
             },
             subentry_type=SUBENTRY_TYPE_USER,
-            title="Alice",
+            title=name,
             unique_id=None,
         ),
     )
@@ -1309,3 +1317,252 @@ async def test_restart_mid_pending_restores_and_resumes_countdown(hass, freezer)
     async_fire_time_changed(hass, dt_util.utcnow())
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == AlarmControlPanelState.TRIGGERED
+
+
+# --- MidnightAlarmMaster (the "All Areas" override entity) -----------------
+
+
+def _master_entity_id(hass, entry) -> str:
+    return _find_entity_id(hass, f"{entry.entry_id}_master")
+
+
+async def test_master_not_created_without_any_area(hass):
+    entry = await _setup_entry(hass, subentries_data=[])
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id(
+            "alarm_control_panel", DOMAIN, f"{entry.entry_id}_master"
+        )
+        is None
+    )
+
+
+async def test_master_created_on_hub_device_and_starts_disarmed(hass):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    master_id = _master_entity_id(hass, entry)
+    button_id = er.async_get(hass).async_get_entity_id(
+        "button", DOMAIN, f"{entry.entry_id}_trigger_alert"
+    )
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get(master_id).device_id
+        == registry.async_get(button_id).device_id
+    )
+    assert hass.states.get(master_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_master_state_mirrors_single_area(hass):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    area_id = _find_entity_id(hass, "area1")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": area_id},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.ARMED_HOME
+    assert hass.states.get(master_id).state == AlarmControlPanelState.ARMED_HOME
+
+
+async def test_master_state_disarmed_when_areas_disagree(hass):
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[_area_subentry("area1"), _area_subentry("area2")],
+    )
+    area1_id = _find_entity_id(hass, "area1")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": area1_id},
+        blocking=True,
+    )
+    assert hass.states.get(area1_id).state == AlarmControlPanelState.ARMED_HOME
+    # area2 is still disarmed - the two areas disagree, so master can't
+    # honestly claim a single armed mode covers the whole home.
+    assert hass.states.get(master_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_master_arm_forces_every_area_immediately_bypassing_exit_delay(hass):
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[
+            _area_subentry("area1", exit_time=60),
+            _area_subentry("area2", exit_time=60),
+        ],
+    )
+    area1_id = _find_entity_id(hass, "area1")
+    area2_id = _find_entity_id(hass, "area2")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": master_id},
+        blocking=True,
+    )
+    # Straight to ARMED_AWAY, never ARMING - the master overrides each
+    # area's own exit delay rather than fanning out a normal arm call.
+    assert hass.states.get(area1_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert hass.states.get(area2_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert hass.states.get(master_id).state == AlarmControlPanelState.ARMED_AWAY
+
+
+@pytest.mark.parametrize(
+    ("service", "expected_state"),
+    [
+        ("alarm_arm_home", AlarmControlPanelState.ARMED_HOME),
+        ("alarm_arm_night", AlarmControlPanelState.ARMED_NIGHT),
+        ("alarm_arm_vacation", AlarmControlPanelState.ARMED_VACATION),
+        ("alarm_arm_custom_bypass", AlarmControlPanelState.ARMED_CUSTOM_BYPASS),
+    ],
+)
+async def test_master_forces_every_arm_mode(hass, service, expected_state):
+    area = _area_subentry("area1")
+    for mode in ("armed_night", "armed_vacation", "armed_custom_bypass"):
+        area["data"][CONF_MODES][mode] = {
+            "enabled": True,
+            "exit_time": 60,
+            "entry_time": 30,
+            "trigger_time": 120,
+        }
+    entry = await _setup_entry(hass, subentries_data=[area])
+    area_id = _find_entity_id(hass, "area1")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        service,
+        {"entity_id": master_id},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == expected_state
+    assert hass.states.get(master_id).state == expected_state
+
+
+async def test_master_disarm_cancels_an_in_progress_arming_countdown(hass, freezer):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    area_id = _find_entity_id(hass, "area1")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": area_id},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.ARMING
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_disarm",
+        {"entity_id": master_id},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.DISARMED
+
+    # If the old ARMING deadline callback hadn't actually been cancelled,
+    # it would still fire here and flip the area back to ARMED_AWAY.
+    freezer.move_to(dt_util.utcnow() + timedelta(seconds=61))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert hass.states.get(area_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_master_rejects_an_area_restricted_users_code(hass):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    await _add_user(hass, entry, is_override_code=False, area_limit=["area1"])
+    master_id = _master_entity_id(hass, entry)
+    area_id = _find_entity_id(hass, "area1")
+
+    # Restricted-Alice's code works fine directly on her own area...
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_home",
+        {"entity_id": area_id, "code": "1234"},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.ARMED_HOME
+    await hass.services.async_call(
+        "alarm_control_panel", "alarm_disarm", {"entity_id": area_id, "code": "1234"}, blocking=True
+    )
+
+    # ...but not on the master, which only accepts an area-unrestricted code.
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "alarm_control_panel",
+            "alarm_arm_away",
+            {"entity_id": master_id, "code": "1234"},
+            blocking=True,
+        )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_master_accepts_an_unrestricted_users_code(hass):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    await _add_user(hass, entry, is_override_code=False, area_limit=[])
+    master_id = _master_entity_id(hass, entry)
+    area_id = _find_entity_id(hass, "area1")
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": master_id, "code": "1234"},
+        blocking=True,
+    )
+    assert hass.states.get(area_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert hass.states.get(area_id).attributes["changed_by"] == "Alice"
+    assert hass.states.get(master_id).attributes["changed_by"] == "Alice"
+
+
+async def test_master_trigger_fans_out_to_every_area_without_a_code(hass):
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[_area_subentry("area1"), _area_subentry("area2")],
+    )
+    await _add_user(hass, entry, is_override_code=False, area_limit=["area1"])
+    area1_id = _find_entity_id(hass, "area1")
+    area2_id = _find_entity_id(hass, "area2")
+    master_id = _master_entity_id(hass, entry)
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_trigger",
+        {"entity_id": master_id},
+        blocking=True,
+    )
+    assert hass.states.get(area1_id).state == AlarmControlPanelState.TRIGGERED
+    assert hass.states.get(area2_id).state == AlarmControlPanelState.TRIGGERED
+    assert hass.states.get(master_id).state == AlarmControlPanelState.TRIGGERED
+
+
+async def test_master_code_arm_required_follows_any_users_configured(hass):
+    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1")])
+    master_id = _master_entity_id(hass, entry)
+    assert hass.states.get(master_id).attributes["code_arm_required"] is False
+
+    await _add_user(hass, entry, is_override_code=False, area_limit=["area1"])
+    # The state attribute only refreshes on the next write - reload to see it,
+    # same as any other subentry-data change (e.g. manage_sensors does this
+    # explicitly too).
+    with patch(VALIDATE, new=AsyncMock(return_value={})):
+        await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    master_id = _master_entity_id(hass, entry)
+    assert hass.states.get(master_id).attributes["code_arm_required"] is True
+
+
+async def test_master_supported_features_unions_every_area(hass):
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[_area_subentry("area1")],
+    )
+    master_id = _master_entity_id(hass, entry)
+    area_id = _find_entity_id(hass, "area1")
+    assert (
+        hass.states.get(master_id).attributes["supported_features"]
+        == hass.states.get(area_id).attributes["supported_features"]
+    )
