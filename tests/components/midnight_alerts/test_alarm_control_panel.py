@@ -20,6 +20,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.midnight_alerts import pin, sensors
 from custom_components.midnight_alerts.alarm_control_panel import (
     MidnightAlarmArea,
+    MidnightAlarmMaster,
     _AreaFsmExtraData,
 )
 from custom_components.midnight_alerts.alarm_state import AreaFsm
@@ -1256,6 +1257,42 @@ async def test_will_remove_from_hass_cancels_pending_delay_on_timers():
     assert area._delay_on_unsub == {}
 
 
+async def test_will_remove_from_hass_forgets_itself_from_master():
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
+    subentry = ConfigSubentry(
+        data=_area_subentry("area1")["data"],
+        subentry_type=SUBENTRY_TYPE_AREA,
+        title="Home",
+        unique_id=None,
+        subentry_id="area1",
+    )
+    area = MidnightAlarmArea(entry, subentry)
+    master = MidnightAlarmMaster(entry, [area])
+    area.async_set_master(master)
+
+    await area.async_will_remove_from_hass()
+
+    assert area not in master._areas
+
+
+def test_master_forget_area_is_a_no_op_if_never_added_to_hass():
+    """Guards the same self.hass is not None check async_write_ha_state uses."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
+    subentry = ConfigSubentry(
+        data=_area_subentry("area1")["data"],
+        subentry_type=SUBENTRY_TYPE_AREA,
+        title="Home",
+        unique_id=None,
+        subentry_id="area1",
+    )
+    area = MidnightAlarmArea(entry, subentry)
+    master = MidnightAlarmMaster(entry, [area])
+
+    master.async_forget_area(area)  # must not raise despite master.hass is None
+
+    assert area not in master._areas
+
+
 async def test_restart_mid_arming_restores_and_resumes_countdown(hass, freezer):
     entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
     entity_id = _find_entity_id(hass, "area1")
@@ -1384,6 +1421,40 @@ async def test_master_state_disarmed_when_areas_disagree(hass):
     # area2 is still disarmed - the two areas disagree, so master can't
     # honestly claim a single armed mode covers the whole home.
     assert hass.states.get(master_id).state == AlarmControlPanelState.DISARMED
+
+
+async def test_master_drops_a_removed_area_from_the_aggregate(hass):
+    """Regression test: deleting an area's subentry must refresh the master.
+
+    Before the fix, MidnightAlarmArea.async_will_remove_from_hass never told
+    the master about the removal, so the departed area's last-known state
+    stayed in the master's aggregate forever - not just a stale read, but a
+    permanent phantom member nothing would ever prune. Proven here by arming
+    the surviving area *after* the removal: if area2 were still silently
+    counted (disarmed, its last state), the mismatch would force the master
+    to DISARMED instead of correctly agreeing with the one real area left.
+    """
+    entry = await _setup_entry(
+        hass,
+        subentries_data=[
+            _area_subentry("area1", exit_time=0),
+            _area_subentry("area2"),
+        ],
+    )
+    area1_id = _find_entity_id(hass, "area1")
+    master_id = _master_entity_id(hass, entry)
+
+    hass.config_entries.async_remove_subentry(entry, "area2")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_arm_away",
+        {"entity_id": area1_id},
+        blocking=True,
+    )
+    assert hass.states.get(area1_id).state == AlarmControlPanelState.ARMED_AWAY
+    assert hass.states.get(master_id).state == AlarmControlPanelState.ARMED_AWAY
 
 
 async def test_master_arm_forces_every_area_immediately_bypassing_exit_delay(hass):

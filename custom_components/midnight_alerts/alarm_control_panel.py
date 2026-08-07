@@ -280,6 +280,8 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         for unsub in self._delay_on_unsub.values():
             unsub()
         self._delay_on_unsub = {}
+        if self._master is not None:
+            self._master.async_forget_area(self)
         await super().async_will_remove_from_hass()
 
     @property
@@ -708,6 +710,20 @@ class MidnightAlarmMaster(AlarmControlPanelEntity):
         for area in areas:
             features |= area._attr_supported_features
         self._attr_supported_features = features
+
+    def async_forget_area(self, area: MidnightAlarmArea) -> None:
+        """Drop a removed area from the aggregate and refresh to reflect it.
+
+        Called from MidnightAlarmArea.async_will_remove_from_hass. Without
+        this, a deleted area's object would stay in self._areas forever -
+        not just a stale read until the next unrelated event, but a
+        permanent phantom member that every future aggregate_state() call
+        would keep including, since nothing else ever prunes this list.
+        """
+        if area in self._areas:
+            self._areas.remove(area)
+        if self.hass is not None:
+            self.async_write_ha_state()
 
     @property
     def alarm_state(self) -> AlarmControlPanelState:
