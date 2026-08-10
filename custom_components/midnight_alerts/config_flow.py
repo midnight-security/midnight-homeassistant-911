@@ -257,52 +257,134 @@ AREA_CREATE_SCHEMA = vol.Schema(
     }
 )
 
-_TIMER_FIELDS = {
-    vol.Required(CONF_EXIT_TIME, default=DEFAULT_EXIT_TIME): vol.Coerce(int),
-    vol.Required(CONF_ENTRY_TIME, default=DEFAULT_ENTRY_TIME): vol.Coerce(int),
-    vol.Required(CONF_TRIGGER_TIME, default=DEFAULT_TRIGGER_TIME): vol.Coerce(int),
-}
+def _modes_data(
+    enabled_modes: list[str], mode_timers: dict[str, dict[str, int]]
+) -> dict[str, Any]:
+    """Build the per-mode data dict; each enabled mode keeps its own timer set.
 
-
-def _modes_data(enabled_modes: list[str], timers: dict[str, int]) -> dict[str, Any]:
-    """Build the per-mode data dict; every enabled mode shares one timer set.
-
-    Phase 1 simplification: the data model already supports independently
-    configurable timers per mode, but this flow only exposes one shared set
-    across every enabled mode - per-mode timer editing is deferred.
+    `mode_timers` need only cover the enabled modes - a mode missing from it
+    (e.g. one that was never configured, or one that's disabled) falls back
+    to the stock defaults.
     """
     return {
         mode: {
             CONF_ENABLED: mode in enabled_modes,
-            CONF_EXIT_TIME: timers[CONF_EXIT_TIME],
-            CONF_ENTRY_TIME: timers[CONF_ENTRY_TIME],
-            CONF_TRIGGER_TIME: timers[CONF_TRIGGER_TIME],
+            CONF_EXIT_TIME: mode_timers.get(mode, {}).get(
+                CONF_EXIT_TIME, DEFAULT_EXIT_TIME
+            ),
+            CONF_ENTRY_TIME: mode_timers.get(mode, {}).get(
+                CONF_ENTRY_TIME, DEFAULT_ENTRY_TIME
+            ),
+            CONF_TRIGGER_TIME: mode_timers.get(mode, {}).get(
+                CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
+            ),
         }
         for mode in _MODE_VALUES
     }
 
 
+def _mode_timer_field_key(mode: str, field: str) -> str:
+    return f"{mode}_{field}"
+
+
+def _mode_timers_schema(enabled_modes: list[str]) -> vol.Schema:
+    """One exit/entry/trigger triplet per enabled mode, each its own field."""
+    fields: dict[Any, Any] = {}
+    for mode in enabled_modes:
+        fields[
+            vol.Required(
+                _mode_timer_field_key(mode, CONF_EXIT_TIME), default=DEFAULT_EXIT_TIME
+            )
+        ] = vol.Coerce(int)
+        fields[
+            vol.Required(
+                _mode_timer_field_key(mode, CONF_ENTRY_TIME),
+                default=DEFAULT_ENTRY_TIME,
+            )
+        ] = vol.Coerce(int)
+        fields[
+            vol.Required(
+                _mode_timer_field_key(mode, CONF_TRIGGER_TIME),
+                default=DEFAULT_TRIGGER_TIME,
+            )
+        ] = vol.Coerce(int)
+    return vol.Schema(fields)
+
+
+def _mode_timers_from_input(
+    enabled_modes: list[str], user_input: dict[str, Any]
+) -> dict[str, dict[str, int]]:
+    return {
+        mode: {
+            CONF_EXIT_TIME: user_input[_mode_timer_field_key(mode, CONF_EXIT_TIME)],
+            CONF_ENTRY_TIME: user_input[_mode_timer_field_key(mode, CONF_ENTRY_TIME)],
+            CONF_TRIGGER_TIME: user_input[
+                _mode_timer_field_key(mode, CONF_TRIGGER_TIME)
+            ],
+        }
+        for mode in enabled_modes
+    }
+
+
+def _suggested_mode_timers(
+    enabled_modes: list[str], modes_data: dict[str, Any]
+) -> dict[str, int]:
+    """Existing per-mode timers (or defaults, for a newly-enabled mode)."""
+    suggested: dict[str, int] = {}
+    for mode in enabled_modes:
+        cfg = modes_data.get(mode, {})
+        suggested[_mode_timer_field_key(mode, CONF_EXIT_TIME)] = cfg.get(
+            CONF_EXIT_TIME, DEFAULT_EXIT_TIME
+        )
+        suggested[_mode_timer_field_key(mode, CONF_ENTRY_TIME)] = cfg.get(
+            CONF_ENTRY_TIME, DEFAULT_ENTRY_TIME
+        )
+        suggested[_mode_timer_field_key(mode, CONF_TRIGGER_TIME)] = cfg.get(
+            CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
+        )
+    return suggested
+
+
 class AreaSubentryFlowHandler(ConfigSubentryFlow):
-    """Create/reconfigure a Midnight Alarm area."""
+    """Create/reconfigure a Midnight Alarm area.
+
+    Name/enabled-modes and per-mode timers are two steps, not one - the
+    timers step's schema is built *from* the modes just chosen, the same
+    "pick members, then configure per-member fields" shape
+    SensorGroupSubentryFlowHandler's weights step already uses below. A
+    single combined form can't do this: the set of timer fields to show
+    depends on an answer from the same submission.
+    """
+
+    _pending_data: dict[str, Any]
+    _pending_subentry: ConfigSubentry | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Create a new area with default timers, applied to the selected modes."""
+        """Step 1: name and enabled modes."""
         if user_input is not None:
-            timers = {
-                CONF_EXIT_TIME: DEFAULT_EXIT_TIME,
-                CONF_ENTRY_TIME: DEFAULT_ENTRY_TIME,
-                CONF_TRIGGER_TIME: DEFAULT_TRIGGER_TIME,
-            }
+            self._pending_data = user_input
+            return await self.async_step_timers()
+        return self.async_show_form(step_id="user", data_schema=AREA_CREATE_SCHEMA)
+
+    async def async_step_timers(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Step 2: exit/entry/trigger time, individually per enabled mode."""
+        enabled_modes = self._pending_data["enabled_modes"]
+        if user_input is not None:
+            mode_timers = _mode_timers_from_input(enabled_modes, user_input)
             return self.async_create_entry(
-                title=user_input[CONF_NAME],
+                title=self._pending_data[CONF_NAME],
                 data={
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_MODES: _modes_data(user_input["enabled_modes"], timers),
+                    CONF_NAME: self._pending_data[CONF_NAME],
+                    CONF_MODES: _modes_data(enabled_modes, mode_timers),
                 },
             )
-        return self.async_show_form(step_id="user", data_schema=AREA_CREATE_SCHEMA)
+        return self.async_show_form(
+            step_id="timers", data_schema=_mode_timers_schema(enabled_modes)
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -316,29 +398,17 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_edit_timers(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Edit name, enabled modes, and the shared timer set."""
+        """Reconfigure step 1: name and enabled modes."""
         subentry = self._get_reconfigure_subentry()
         modes_data = subentry.data.get(CONF_MODES, {})
         currently_enabled = [
             mode for mode, cfg in modes_data.items() if cfg.get(CONF_ENABLED)
         ]
-        any_mode_cfg = next(iter(modes_data.values()), {})
 
         if user_input is not None:
-            timers = {
-                CONF_EXIT_TIME: user_input[CONF_EXIT_TIME],
-                CONF_ENTRY_TIME: user_input[CONF_ENTRY_TIME],
-                CONF_TRIGGER_TIME: user_input[CONF_TRIGGER_TIME],
-            }
-            return self.async_update_and_abort(
-                self._get_entry(),
-                subentry,
-                title=user_input[CONF_NAME],
-                data_updates={
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_MODES: _modes_data(user_input["enabled_modes"], timers),
-                },
-            )
+            self._pending_data = user_input
+            self._pending_subentry = subentry
+            return await self.async_step_reconfigure_timers()
 
         schema = vol.Schema(
             {
@@ -347,21 +417,42 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
                     "enabled_modes", default=currently_enabled
                 ): _MODE_SELECTOR,
             }
-        ).extend(_TIMER_FIELDS)
+        )
         return self.async_show_form(
             step_id="edit_timers",
             data_schema=self.add_suggested_values_to_schema(
                 schema,
                 {
                     CONF_NAME: subentry.data.get(CONF_NAME),
-                    CONF_EXIT_TIME: any_mode_cfg.get(CONF_EXIT_TIME, DEFAULT_EXIT_TIME),
-                    CONF_ENTRY_TIME: any_mode_cfg.get(
-                        CONF_ENTRY_TIME, DEFAULT_ENTRY_TIME
-                    ),
-                    CONF_TRIGGER_TIME: any_mode_cfg.get(
-                        CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
-                    ),
                 },
+            ),
+        )
+
+    async def async_step_reconfigure_timers(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Reconfigure step 2: exit/entry/trigger time, per enabled mode."""
+        subentry = self._pending_subentry
+        enabled_modes = self._pending_data["enabled_modes"]
+        modes_data = subentry.data.get(CONF_MODES, {})
+
+        if user_input is not None:
+            mode_timers = _mode_timers_from_input(enabled_modes, user_input)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                subentry,
+                title=self._pending_data[CONF_NAME],
+                data_updates={
+                    CONF_NAME: self._pending_data[CONF_NAME],
+                    CONF_MODES: _modes_data(enabled_modes, mode_timers),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure_timers",
+            data_schema=self.add_suggested_values_to_schema(
+                _mode_timers_schema(enabled_modes),
+                _suggested_mode_timers(enabled_modes, modes_data),
             ),
         )
 

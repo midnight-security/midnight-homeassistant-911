@@ -64,6 +64,20 @@ async def test_add_area(hass):
         result["flow_id"],
         {CONF_NAME: "Home", "enabled_modes": ["armed_away", "armed_home"]},
     )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "timers"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "armed_away_exit_time": 60,
+            "armed_away_entry_time": 30,
+            "armed_away_trigger_time": 120,
+            "armed_home_exit_time": 0,
+            "armed_home_entry_time": 0,
+            "armed_home_trigger_time": 120,
+        },
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
     (subentry,) = [
@@ -71,7 +85,42 @@ async def test_add_area(hass):
     ]
     assert subentry.title == "Home"
     assert subentry.data[CONF_MODES]["armed_away"]["enabled"] is True
+    assert subentry.data[CONF_MODES]["armed_away"]["exit_time"] == 60
+    assert subentry.data[CONF_MODES]["armed_home"]["exit_time"] == 0
     assert subentry.data[CONF_MODES]["armed_night"]["enabled"] is False
+
+
+async def test_add_area_gives_each_mode_independent_timers(hass):
+    """The whole point of the two-step flow: modes don't share one timer set."""
+    entry = await _entry(hass)
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_AREA),
+        context={"source": "user"},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {CONF_NAME: "Home", "enabled_modes": ["armed_away", "armed_night"]},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "armed_away_exit_time": 60,
+            "armed_away_entry_time": 30,
+            "armed_away_trigger_time": 120,
+            "armed_night_exit_time": 0,
+            "armed_night_entry_time": 10,
+            "armed_night_trigger_time": 60,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    assert subentry.data[CONF_MODES]["armed_away"]["exit_time"] == 60
+    assert subentry.data[CONF_MODES]["armed_night"]["exit_time"] == 0
+    assert subentry.data[CONF_MODES]["armed_night"]["entry_time"] == 10
 
 
 async def test_edit_area_timers(hass):
@@ -113,12 +162,24 @@ async def test_edit_area_timers(hass):
 
     result = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
+        {CONF_NAME: "Home", "enabled_modes": ["armed_away"]},
+    )
+    assert result["step_id"] == "reconfigure_timers"
+    # existing per-mode timers are pre-filled as suggested values
+    for marker in result["data_schema"].schema:
+        if str(marker) == "armed_away_exit_time":
+            assert marker.description == {"suggested_value": 60}
+        elif str(marker) == "armed_away_entry_time":
+            assert marker.description == {"suggested_value": 30}
+        elif str(marker) == "armed_away_trigger_time":
+            assert marker.description == {"suggested_value": 120}
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
         {
-            CONF_NAME: "Home",
-            "enabled_modes": ["armed_away"],
-            "exit_time": 45,
-            "entry_time": 15,
-            "trigger_time": 90,
+            "armed_away_exit_time": 45,
+            "armed_away_entry_time": 15,
+            "armed_away_trigger_time": 90,
         },
     )
     assert result["type"] is FlowResultType.ABORT
