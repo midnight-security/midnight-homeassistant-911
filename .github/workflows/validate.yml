@@ -11,8 +11,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4.3.0
+      
       - name: Hassfest validation
         uses: home-assistant/actions/hassfest@master
+      
       - name: HACS validation
         uses: hacs/action@22.5.0
         with:
