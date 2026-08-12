@@ -1,4 +1,5 @@
 """Tests for pin.py's PIN hashing and verification."""
+
 from unittest.mock import patch
 
 import pytest
@@ -129,9 +130,7 @@ async def test_validate_code_respects_area_limit(hass):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={},
-        subentries_data=[
-            _user_subentry("user1", code=hashed, area_limit=["area2"])
-        ],
+        subentries_data=[_user_subentry("user1", code=hashed, area_limit=["area2"])],
     )
     entry.add_to_hass(hass)
 

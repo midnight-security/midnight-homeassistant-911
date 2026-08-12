@@ -1,17 +1,23 @@
 """Tests for the location_mismatch and no_api_key repair flows."""
+
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.components.repairs import repairs_flow_manager
+from homeassistant.setup import async_setup_component
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.config_entries import SOURCE_REAUTH
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import issue_registry as ir
-from homeassistant.setup import async_setup_component
+from homeassistant.components.repairs import repairs_flow_manager
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID, NO_API_KEY_ISSUE_ID
-from custom_components.midnight_alerts.const import CONF_API_KEY, DOMAIN
+from custom_components.midnight_alerts import (
+    NO_API_KEY_ISSUE_ID,
+    LOCATION_MISMATCH_ISSUE_ID,
+)
+from custom_components.midnight_alerts.const import DOMAIN, CONF_API_KEY
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 async def _mismatched_entry(hass) -> MockConfigEntry:
@@ -69,7 +75,9 @@ async def test_update_key_starts_a_reauth_flow_and_leaves_the_issue(hass):
     # until a reload actually clears it, not be wiped out just because this
     # flow finished.
     issue_registry = ir.async_get(hass)
-    assert issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+    assert (
+        issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+    )
 
 
 async def test_recheck_reloads_the_entry_and_clears_a_resolved_issue(hass):
@@ -101,7 +109,9 @@ async def test_recheck_leaves_a_still_mismatched_issue_in_place(hass):
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "still_mismatched"
     issue_registry = ir.async_get(hass)
-    assert issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+    assert (
+        issue_registry.async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+    )
 
 
 async def test_no_api_key_fix_flow_shows_a_confirm_step(hass):
@@ -140,7 +150,9 @@ async def test_no_api_key_confirm_starts_a_reauth_flow_and_leaves_the_issue(hass
     assert issue_registry.async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None
 
 
-async def test_no_api_key_confirm_reports_already_in_progress_instead_of_a_false_success(hass):
+async def test_no_api_key_confirm_reports_already_in_progress_not_false_success(
+    hass,
+):
     """entry.async_start_reauth silently no-ops if a reauth/reconfigure flow is
     already active - the real bug hit by hand: an earlier confirm click had
     already started one, and clicking it again claimed success while doing

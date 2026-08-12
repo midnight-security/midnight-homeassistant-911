@@ -1,22 +1,23 @@
 """Pure unit tests for alarm_state.py - no hass fixture needed."""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 
 from custom_components.midnight_alerts.alarm_state import (
     AreaFsm,
-    abort_arming,
-    aggregate_state,
     disarm,
-    display_state,
-    hold_for_close,
+    abort_arming,
     release_hold,
-    shorten_pending,
     start_arming,
+    display_state,
     start_trigger,
+    hold_for_close,
+    aggregate_state,
+    shorten_pending,
 )
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def test_disarmed_has_no_countdown():
@@ -245,9 +246,7 @@ def test_aggregate_state_triggered_beats_everything():
 
 def test_aggregate_state_pending_beats_arming():
     assert (
-        aggregate_state(
-            [AlarmControlPanelState.ARMING, AlarmControlPanelState.PENDING]
-        )
+        aggregate_state([AlarmControlPanelState.ARMING, AlarmControlPanelState.PENDING])
         == AlarmControlPanelState.PENDING
     )
 

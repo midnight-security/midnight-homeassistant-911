@@ -1,15 +1,16 @@
 """Integration tests for the Midnight Alarm alarm_control_panel platform."""
+
 from datetime import timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 import pytest
-from homeassistant.components.alarm_control_panel import AlarmControlPanelState
-from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import State
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+from homeassistant.helpers import entity_registry as er
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.config_entries import ConfigSubentry
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_capture_events,
@@ -18,32 +19,34 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.midnight_alerts import pin, sensors
+from custom_components.midnight_alerts.const import (
+    DOMAIN,
+    CONF_NAME,
+    CONF_MODES,
+    CONF_API_KEY,
+    CONF_TIMEOUT,
+    CONF_WEIGHTS,
+    CONF_ENTITIES,
+    CONF_THRESHOLD,
+    CONF_GROUP_MODE,
+    CONF_EVENT_COUNT,
+    EVENT_ARM_FAILED,
+    SUBENTRY_TYPE_AREA,
+    SUBENTRY_TYPE_USER,
+    MODE_WEIGHTED_DECAY,
+    CONF_DECAY_PER_MINUTE,
+    SUBENTRY_TYPE_SENSOR_GROUP,
+)
+from custom_components.midnight_alerts.alarm_state import AreaFsm
 from custom_components.midnight_alerts.alarm_control_panel import (
     MidnightAlarmArea,
     MidnightAlarmMaster,
     _AreaFsmExtraData,
 )
-from custom_components.midnight_alerts.alarm_state import AreaFsm
-from custom_components.midnight_alerts.const import (
-    CONF_API_KEY,
-    CONF_DECAY_PER_MINUTE,
-    CONF_ENTITIES,
-    CONF_EVENT_COUNT,
-    CONF_GROUP_MODE,
-    CONF_MODES,
-    CONF_NAME,
-    CONF_THRESHOLD,
-    CONF_TIMEOUT,
-    CONF_WEIGHTS,
-    DOMAIN,
-    EVENT_ARM_FAILED,
-    MODE_WEIGHTED_DECAY,
-    SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
-    SUBENTRY_TYPE_USER,
-)
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 def _area_subentry(
@@ -212,7 +215,9 @@ async def test_open_sensors_attribute_reflects_current_sensor_state(hass):
     assert hass.states.get(entity_id).attributes["open_sensors"] == []
 
 
-async def test_bypassed_sensors_attribute_only_set_for_override_armed_session(hass, freezer):
+async def test_bypassed_sensors_attribute_only_set_for_override_armed_session(
+    hass, freezer
+):
     registry = er.async_get(hass)
     sensor_entity_id = registry.async_get_or_create(
         "binary_sensor", "test", "front_door"
@@ -223,7 +228,9 @@ async def test_bypassed_sensors_attribute_only_set_for_override_armed_session(ha
         hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
     )
 
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=10)]
+    )
     entity_id = _find_entity_id(hass, "area1")
 
     # not yet armed - no bypass to report
@@ -257,9 +264,10 @@ async def test_next_state_change_exposes_the_exit_deadline_while_arming(hass, fr
         {"entity_id": entity_id},
         blocking=True,
     )
-    assert hass.states.get(entity_id).attributes["next_state_change"] == (
-        arm_time + timedelta(seconds=60)
-    ).isoformat()
+    assert (
+        hass.states.get(entity_id).attributes["next_state_change"]
+        == (arm_time + timedelta(seconds=60)).isoformat()
+    )
 
     # once ARMED, the stale arming_until deadline must not still be reported
     freezer.move_to(arm_time + timedelta(seconds=61))
@@ -348,7 +356,9 @@ async def test_override_code_bypasses_arm_on_close_hold(hass, freezer):
         hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
     )
 
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=10)]
+    )
     await _add_user(hass, entry, is_override_code=True)
     entity_id = _find_entity_id(hass, "area1")
 
@@ -380,7 +390,9 @@ async def test_non_override_code_still_holds_for_arm_on_close(hass, freezer):
         hass, sensor_entity_id, area_subentry_id="area1", arm_on_close=True
     )
 
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=10)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=10)]
+    )
     await _add_user(hass, entry, is_override_code=False)
     entity_id = _find_entity_id(hass, "area1")
 
@@ -407,7 +419,9 @@ async def test_override_code_bypasses_use_exit_delay_false_abort(hass):
         hass, sensor_entity_id, area_subentry_id="area1", use_exit_delay=False
     )
 
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=60)]
+    )
     await _add_user(hass, entry, is_override_code=True)
     entity_id = _find_entity_id(hass, "area1")
 
@@ -871,11 +885,19 @@ async def test_arm_on_close_holds_arming_until_sensor_closes(hass, freezer):
     assert hass.states.get(entity_id).state == AlarmControlPanelState.ARMED_AWAY
 
 
-async def test_arm_on_close_ignores_non_flagged_and_waits_for_all_flagged(hass, freezer):
+async def test_arm_on_close_ignores_non_flagged_and_waits_for_all_flagged(
+    hass, freezer
+):
     registry = er.async_get(hass)
-    flagged_a = registry.async_get_or_create("binary_sensor", "test", "front_door").entity_id
-    flagged_b = registry.async_get_or_create("binary_sensor", "test", "back_door").entity_id
-    unflagged = registry.async_get_or_create("binary_sensor", "test", "motion").entity_id
+    flagged_a = registry.async_get_or_create(
+        "binary_sensor", "test", "front_door"
+    ).entity_id
+    flagged_b = registry.async_get_or_create(
+        "binary_sensor", "test", "back_door"
+    ).entity_id
+    unflagged = registry.async_get_or_create(
+        "binary_sensor", "test", "motion"
+    ).entity_id
     for entity_id in (flagged_a, flagged_b, unflagged):
         hass.states.async_set(entity_id, "on")
     await hass.async_block_till_done()
@@ -1294,7 +1316,9 @@ def test_master_forget_area_is_a_no_op_if_never_added_to_hass():
 
 
 async def test_restart_mid_arming_restores_and_resumes_countdown(hass, freezer):
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=60)]
+    )
     entity_id = _find_entity_id(hass, "area1")
 
     await hass.config_entries.async_unload(entry.entry_id)
@@ -1515,7 +1539,9 @@ async def test_master_forces_every_arm_mode(hass, service, expected_state):
 
 
 async def test_master_disarm_cancels_an_in_progress_arming_countdown(hass, freezer):
-    entry = await _setup_entry(hass, subentries_data=[_area_subentry("area1", exit_time=60)])
+    entry = await _setup_entry(
+        hass, subentries_data=[_area_subentry("area1", exit_time=60)]
+    )
     area_id = _find_entity_id(hass, "area1")
     master_id = _master_entity_id(hass, entry)
 
@@ -1558,7 +1584,10 @@ async def test_master_rejects_an_area_restricted_users_code(hass):
     )
     assert hass.states.get(area_id).state == AlarmControlPanelState.ARMED_HOME
     await hass.services.async_call(
-        "alarm_control_panel", "alarm_disarm", {"entity_id": area_id, "code": "1234"}, blocking=True
+        "alarm_control_panel",
+        "alarm_disarm",
+        {"entity_id": area_id, "code": "1234"},
+        blocking=True,
     )
 
     # ...but not on the master, which only accepts an area-unrestricted code.

@@ -1,4 +1,5 @@
 """Test the Midnight Alerts API client."""
+
 from unittest.mock import patch
 
 import pytest
@@ -8,8 +9,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from custom_components.midnight_alerts import error_reporting
 from custom_components.midnight_alerts.api import (
     BASE_URL,
-    MidnightAlertsApiClient,
     MidnightAlertsApiError,
+    MidnightAlertsApiClient,
     MidnightAlertsAuthError,
 )
 
@@ -21,7 +22,10 @@ def _client(hass, **kwargs):
 
 async def test_is_configured_reflects_whether_a_key_was_set(hass):
     assert _client(hass).is_configured is True
-    assert MidnightAlertsApiClient("", async_get_clientsession(hass)).is_configured is False
+    assert (
+        MidnightAlertsApiClient("", async_get_clientsession(hass)).is_configured
+        is False
+    )
 
 
 async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
@@ -57,14 +61,16 @@ async def test_async_trigger_alert_posts_json_payload(hass, aioclient_mock):
 
 @pytest.mark.parametrize("status", [401, 403])
 async def test_auth_rejection_raises_auth_error(hass, aioclient_mock, status):
-    """401/403 must raise MidnightAlertsAuthError specifically, not the generic error."""
+    """401/403 must raise MidnightAlertsAuthError, not the generic error."""
     aioclient_mock.get(f"{BASE_URL}/validate", status=status)
 
     with pytest.raises(MidnightAlertsAuthError, match=str(status)):
         await _client(hass).async_validate(latitude=1.0, longitude=2.0)
 
 
-async def test_non_200_error_message_excludes_response_body(hass, aioclient_mock, caplog):
+async def test_non_200_error_message_excludes_response_body(
+    hass, aioclient_mock, caplog
+):
     """The raised message must not leak an upstream gateway's raw HTML body.
 
     That body still needs to be visible for troubleshooting, so it's expected
@@ -83,7 +89,7 @@ async def test_non_200_error_message_excludes_response_body(hass, aioclient_mock
 
 
 async def test_connection_failure_wrapped_in_api_error(hass, aioclient_mock):
-    """A transport-level failure (no HTTP response at all) is wrapped, not leaked raw."""
+    """A transport-level failure (no HTTP response) is wrapped, not leaked raw."""
     aioclient_mock.get(f"{BASE_URL}/validate", exc=ClientConnectionError("boom"))
 
     with pytest.raises(MidnightAlertsApiError, match="Error connecting to API"):
@@ -93,12 +99,14 @@ async def test_connection_failure_wrapped_in_api_error(hass, aioclient_mock):
 async def test_failures_reported_with_operation_and_release_when_enabled(
     hass, aioclient_mock
 ):
-    """report_errors=True must forward failures to error_reporting with the path as operation."""
+    """report_errors=True forwards the failure to error_reporting, path as operation."""
     aioclient_mock.get(f"{BASE_URL}/validate", status=500, text="boom")
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
-            await _client(hass, report_errors=True, release="1.2.3").async_validate(latitude=1.0, longitude=2.0)
+            await _client(hass, report_errors=True, release="1.2.3").async_validate(
+                latitude=1.0, longitude=2.0
+            )
 
     mock_report.assert_called_once()
     _, kwargs = mock_report.call_args
@@ -108,7 +116,7 @@ async def test_failures_reported_with_operation_and_release_when_enabled(
 
 
 async def test_failures_not_enabled_for_reporting_by_default(hass, aioclient_mock):
-    """report_errors defaults to False, so error_reporting must be told not to report."""
+    """report_errors defaults False, so error_reporting is told not to report."""
     aioclient_mock.get(f"{BASE_URL}/validate", status=500, text="boom")
 
     with patch.object(error_reporting, "report_exception") as mock_report:
@@ -120,12 +128,14 @@ async def test_failures_not_enabled_for_reporting_by_default(hass, aioclient_moc
 
 
 async def test_connection_failure_also_reported_when_enabled(hass, aioclient_mock):
-    """The ClientError path must report through error_reporting too, not just API errors."""
+    """The ClientError path reports through error_reporting too, not just API errors."""
     aioclient_mock.get(f"{BASE_URL}/validate", exc=ClientConnectionError("boom"))
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
-            await _client(hass, report_errors=True).async_validate(latitude=1.0, longitude=2.0)
+            await _client(hass, report_errors=True).async_validate(
+                latitude=1.0, longitude=2.0
+            )
 
     mock_report.assert_called_once()
     _, kwargs = mock_report.call_args

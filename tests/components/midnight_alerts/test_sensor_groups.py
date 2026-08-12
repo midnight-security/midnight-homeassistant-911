@@ -1,5 +1,6 @@
 """Pure unit tests for sensor_groups.py - no hass fixture needed."""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 from custom_components.midnight_alerts.sensor_groups import (
     GroupScore,
@@ -8,7 +9,7 @@ from custom_components.midnight_alerts.sensor_groups import (
     is_score_confirmed,
 )
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def test_single_trip_not_confirmed_for_2_of_2():

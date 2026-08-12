@@ -1,44 +1,44 @@
 """Tests for the area/user config subentry flows."""
+
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.helpers import entity_registry as er
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.midnight_alerts import pin, sensors
 from custom_components.midnight_alerts.const import (
-    CONF_API_KEY,
-    CONF_ALWAYS_ON,
-    CONF_AREA_LIMIT,
-    CONF_ARM_ON_CLOSE,
+    DOMAIN,
     CONF_CODE,
-    CONF_DECAY_PER_MINUTE,
-    CONF_DELAY_ON,
-    CONF_ENTITIES,
-    CONF_EVENT_COUNT,
-    CONF_GROUP_MODE,
-    CONF_MODES,
     CONF_NAME,
-    CONF_SENSOR_ENTRY_DELAY,
-    CONF_THRESHOLD,
+    CONF_MODES,
+    CONF_API_KEY,
     CONF_TIMEOUT,
     CONF_WEIGHTS,
-    DOMAIN,
-    MODE_WEIGHTED_DECAY,
-    SUBENTRY_TYPE_ALARMO_IMPORT,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_THRESHOLD,
+    CONF_GROUP_MODE,
+    CONF_EVENT_COUNT,
+    CONF_ARM_ON_CLOSE,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    MODE_WEIGHTED_DECAY,
+    CONF_DECAY_PER_MINUTE,
+    CONF_SENSOR_ENTRY_DELAY,
+    SUBENTRY_TYPE_SENSOR_GROUP,
+    SUBENTRY_TYPE_ALARMO_IMPORT,
 )
 
-FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
-)
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 async def _entry(hass) -> MockConfigEntry:
@@ -735,7 +735,9 @@ def _write_alarmo_storage(hass) -> None:
     (storage_dir / "alarmo.storage").write_text(FIXTURE_PATH.read_text())
 
 
-async def test_alarmo_import_flow_shows_preview_then_applies(hass, tmp_path, monkeypatch):
+async def test_alarmo_import_flow_shows_preview_then_applies(
+    hass, tmp_path, monkeypatch
+):
     # See test_alarmo_import.py's test_read_alarmo_storage_missing_file_returns_none
     # for why config_dir must be redirected before writing a real storage file.
     monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
@@ -803,7 +805,9 @@ async def test_alarmo_import_flow_version_mismatch_aborts(hass, tmp_path, monkey
     assert result["reason"] == "alarmo_version_mismatch"
 
 
-async def test_alarmo_import_flow_twice_reports_already_imported(hass, tmp_path, monkeypatch):
+async def test_alarmo_import_flow_twice_reports_already_imported(
+    hass, tmp_path, monkeypatch
+):
     monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     entry = await _entry(hass)
     _write_alarmo_storage(hass)

@@ -1,4 +1,5 @@
 """Test Sentry crash reporting."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,13 +38,20 @@ def test_enabled_reports_via_isolated_scope():
 
 def test_reporting_failure_is_swallowed():
     """A broken Sentry client must never break the integration."""
-    with patch.object(error_reporting, "_get_scope", side_effect=RuntimeError("no network")):
-        error_reporting.report_exception(ValueError("boom"), operation="validate", enabled=True)
+    with patch.object(
+        error_reporting, "_get_scope", side_effect=RuntimeError("no network")
+    ):
+        error_reporting.report_exception(
+            ValueError("boom"), operation="validate", enabled=True
+        )
 
 
 def test_get_scope_builds_client_with_safe_options():
-    """The isolated client must disable PII/auto-instrumentation and use the scrub hook."""
-    with patch("sentry_sdk.Client") as mock_client_cls, patch("sentry_sdk.Scope") as mock_scope_cls:
+    """The isolated client disables PII/auto-instrumentation and uses the scrub hook."""
+    with (
+        patch("sentry_sdk.Client") as mock_client_cls,
+        patch("sentry_sdk.Scope") as mock_scope_cls,
+    ):
         mock_scope_instance = MagicMock()
         mock_scope_cls.return_value = mock_scope_instance
 
@@ -70,7 +78,9 @@ def test_get_scope_is_cached():
 def test_report_exception_passes_release_through():
     """The release version flows from report_exception into scope construction."""
     mock_scope = MagicMock()
-    with patch.object(error_reporting, "_get_scope", return_value=mock_scope) as mock_get_scope:
+    with patch.object(
+        error_reporting, "_get_scope", return_value=mock_scope
+    ) as mock_get_scope:
         error_reporting.report_exception(
             ValueError("boom"), operation="validate", enabled=True, release="1.2.3"
         )
@@ -82,7 +92,11 @@ def test_report_exception_passes_release_through():
     ("event", "expected_headers"),
     [
         (
-            {"request": {"headers": {"Authorization": "Bearer secret", "Accept": "json"}}},
+            {
+                "request": {
+                    "headers": {"Authorization": "Bearer secret", "Accept": "json"}
+                }
+            },
             {"Accept": "json"},
         ),
         (
@@ -100,7 +114,12 @@ def test_before_send_strips_sensitive_headers(event, expected_headers):
 def test_before_send_strips_sensitive_extra_and_contexts():
     """Address/GPS data must never reach Sentry even if accidentally attached."""
     event = {
-        "extra": {"address": "3 Park Ave", "lat": 40.7128, "lng": -74.006, "safe": "ok"},
+        "extra": {
+            "address": "3 Park Ave",
+            "lat": 40.7128,
+            "lng": -74.006,
+            "safe": "ok",
+        },
         "contexts": {"api_key": "secret", "safe": "ok"},
     }
     result = error_reporting._before_send(event, {})

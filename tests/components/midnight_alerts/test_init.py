@@ -1,19 +1,25 @@
 """Tests for __init__.py's async_setup_entry/async_unload_entry."""
+
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.config_entries import ConfigEntryState
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr
+from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.midnight_alerts import LOCATION_MISMATCH_ISSUE_ID, NO_API_KEY_ISSUE_ID
+from custom_components.midnight_alerts import (
+    NO_API_KEY_ISSUE_ID,
+    LOCATION_MISMATCH_ISSUE_ID,
+)
 from custom_components.midnight_alerts.api import (
     MidnightAlertsApiError,
     MidnightAlertsAuthError,
 )
-from custom_components.midnight_alerts.const import CONF_API_KEY, DOMAIN
+from custom_components.midnight_alerts.const import DOMAIN, CONF_API_KEY
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 def _validate_result(*, matches=True):
@@ -60,7 +66,7 @@ async def test_setup_entry_creates_hub_device(hass):
 
 
 async def test_setup_entry_mismatched_location_creates_repair_issue(hass):
-    """A location far from hass.config's own location raises a repair issue, non-blocking."""
+    """A location far from hass.config's own raises a repair issue, non-blocking."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)
 
@@ -87,20 +93,25 @@ async def test_setup_entry_matching_location_has_no_repair_issue(hass):
 
 
 async def test_reload_after_location_fixed_clears_repair_issue(hass):
-    """A previously-mismatched location that's since been fixed clears the issue on reload."""
+    """A previously-mismatched location that's since been fixed clears the issue."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "test-key"})
     entry.add_to_hass(hass)
 
     with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(matches=False))):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    assert ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is not None
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID)
+        is not None
+    )
 
     with patch(VALIDATE, new=AsyncMock(return_value=_validate_result())):
         await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is None
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, LOCATION_MISMATCH_ISSUE_ID) is None
+    )
 
 
 async def test_setup_entry_without_api_key_loads_without_validating(hass):
@@ -110,7 +121,9 @@ async def test_setup_entry_without_api_key_loads_without_validating(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
     entry.add_to_hass(hass)
 
-    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+    with patch(
+        VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -141,7 +154,9 @@ async def test_reload_after_adding_api_key_clears_no_api_key_issue(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: ""})
     entry.add_to_hass(hass)
 
-    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+    with patch(
+        VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue(DOMAIN, NO_API_KEY_ISSUE_ID) is not None

@@ -1,4 +1,5 @@
 """Test the Midnight Alerts config flow."""
+
 from unittest.mock import AsyncMock, patch
 
 from homeassistant import config_entries
@@ -10,9 +11,9 @@ from custom_components.midnight_alerts.api import (
     MidnightAlertsAuthError,
 )
 from custom_components.midnight_alerts.const import (
+    DOMAIN,
     CONF_API_KEY,
     CONF_ENABLE_CRASH_REPORTING,
-    DOMAIN,
 )
 
 VALIDATE = (
@@ -50,7 +51,7 @@ async def test_form_user_success(hass):
 
 
 async def test_form_user_success_records_an_accepted_crash_reporting_choice(hass):
-    """Checking the box during setup is honored immediately, no separate Configure step needed."""
+    """Checking the box during setup is honored, no Configure step needed."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -69,14 +70,17 @@ async def test_form_user_success_records_an_accepted_crash_reporting_choice(hass
 
 
 async def test_form_user_success_without_api_key_creates_an_inert_entry(hass):
-    """A blank key is a supported choice - setup finishes with no validation attempted."""
+    """A blank key is a supported choice - setup finishes with no validation."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    with patch(VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))):
+    with patch(
+        VALIDATE, new=AsyncMock(side_effect=AssertionError("should not be called"))
+    ):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {CONF_API_KEY: "  "}  # whitespace-only counts as blank
+            result["flow_id"],
+            {CONF_API_KEY: "  "},  # whitespace-only counts as blank
         )
         await hass.async_block_till_done()
 
@@ -90,7 +94,9 @@ async def test_form_location_mismatch(hass):
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))):
+    with patch(
+        VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))
+    ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_API_KEY: "test-key"}
         )
@@ -241,7 +247,9 @@ async def test_reauth_does_not_show_or_touch_crash_reporting(hass):
     assert entry.options == {CONF_ENABLE_CRASH_REPORTING: True}
 
 
-async def test_reconfigure_suggests_the_current_api_key_and_crash_reporting_choice(hass):
+async def test_reconfigure_suggests_the_current_api_key_and_crash_reporting_choice(
+    hass,
+):
     """Reconfigure is the one place to revisit both fields after setup - it
     pre-fills the existing key (editing, or filling in a previously-blank
     one, is the whole point here) and the current crash-reporting choice."""
@@ -277,7 +285,8 @@ async def test_reconfigure_can_add_a_previously_blank_api_key(hass):
     result = await entry.start_reconfigure_flow(hass)
     with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass))):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: False}
+            result["flow_id"],
+            {CONF_API_KEY: "new-key", CONF_ENABLE_CRASH_REPORTING: False},
         )
         await hass.async_block_till_done()
 
@@ -291,11 +300,15 @@ async def test_reconfigure_can_add_a_previously_blank_api_key(hass):
 
 async def test_reconfigure_location_mismatch_shows_form_again(hass):
     """Reconfigure goes through the exact same validation path as initial setup."""
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old-key"})
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old-key"}
+    )
     entry.add_to_hass(hass)
 
     result = await entry.start_reconfigure_flow(hass)
-    with patch(VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))):
+    with patch(
+        VALIDATE, new=AsyncMock(return_value=_validate_result(hass, matches=False))
+    ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_API_KEY: "new-key"}
         )

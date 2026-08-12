@@ -20,3 +20,29 @@ jobs:
         with:
           category: integration
           ignore: brands
+
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: latest
+
+      - name: Run tests
+        run: >
+          uv run python -m pytest tests/ -q
+          --cov=custom_components.midnight_alerts
+          --cov-report=term-missing
+          --cov-fail-under=100
+
+  formatting_and_linting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.1.0
+      - uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version: "0.16.1"
