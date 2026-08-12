@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          fetch-depth: 0
+          # An admin-owned PAT, not the default GITHUB_TOKEN: master requires
+          # pytest + ha_and_hacs_validation status checks, which the version
+          # bump commit this job creates can never satisfy before it's
+          # pushed (nothing has run CI against a commit that doesn't exist
+          # yet). enforce_admins is off, so an admin identity bypasses the
+          # check requirement entirely - the default GITHUB_TOKEN's bot
+          # identity doesn't qualify for that bypass, an admin PAT does.
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Capture version before release
+        id: before
+        run: echo "version=$(jq -r .version custom_components/midnight_alerts/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: yarn semantic-release
+
+      - name: Capture version after release
+        id: after
+        run: echo "version=$(jq -r .version custom_components/midnight_alerts/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      # Only fires when semantic-release actually published a new version -
+      # same version source of truth error_reporting.py tags exceptions with.
+      - name: Record Sentry release and deploy
+        if: steps.before.outputs.version != steps.after.outputs.version
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: midnightsecurity
+          SENTRY_PROJECT: midnight-homeassistant-911
+        with:
+          environment: production
+          release: ${{ steps.after.outputs.version }}
+          set_commits: auto

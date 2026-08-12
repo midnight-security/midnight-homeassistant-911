@@ -1,0 +1,56 @@
+blueprint:
+  name: Midnight Alarm - Auto-Arm Away When Everyone Leaves
+  description: >-
+    Arms a Midnight Alarm area into Away mode once every tracked person has
+    left home. Alarmo's own docs say this exact recipe can't be done from
+    its own automations panel and requires a plain Home Assistant
+    automation instead - this blueprint is that automation, ready to use.
+  domain: automation
+  source_url: https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/auto_arm_away_when_everyone_leaves.yaml
+  author: Midnight Security
+  input:
+    alarm_entity:
+      name: Midnight Alarm area
+      description: The alarm_control_panel entity to arm.
+      selector:
+        entity:
+          filter:
+            - domain: alarm_control_panel
+    people:
+      name: People to track
+      description: Arms once none of these are home.
+      selector:
+        entity:
+          filter:
+            - domain: person
+          multiple: true
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input people
+
+variables:
+  people: !input people
+
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: !input alarm_entity
+        state: armed_away
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: !input alarm_entity
+        state: triggered
+  - condition: template
+    value_template: >-
+      {{ expand(people) | selectattr('state', 'eq', 'home') | list | count == 0 }}
+
+actions:
+  - alias: "Arm away"
+    action: alarm_control_panel.alarm_arm_away
+    target:
+      entity_id: !input alarm_entity

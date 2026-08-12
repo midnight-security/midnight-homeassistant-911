@@ -1,0 +1,153 @@
+{
+  "version": 6,
+  "minor_version": 3,
+  "key": "alarmo.storage",
+  "data": {
+    "config": {
+      "code_arm_required": true,
+      "code_mode_change_required": false,
+      "code_disarm_required": true,
+      "code_format": "number",
+      "disarm_after_trigger": false,
+      "ignore_blocking_sensors_after_trigger": false,
+      "master": { "enabled": false, "name": "Alarmo" },
+      "mqtt": { "enabled": false }
+    },
+    "areas": [
+      {
+        "area_id": "1700000000",
+        "name": "Home",
+        "modes": {
+          "armed_away": { "enabled": true, "exit_time": 45, "entry_time": 20, "trigger_time": 300 },
+          "armed_home": { "enabled": true, "exit_time": 0, "entry_time": 20, "trigger_time": 300 },
+          "armed_night": { "enabled": false, "exit_time": null, "entry_time": null, "trigger_time": null },
+          "armed_vacation": { "enabled": false, "exit_time": null, "entry_time": null, "trigger_time": null },
+          "armed_custom_bypass": { "enabled": false, "exit_time": null, "entry_time": null, "trigger_time": null }
+        }
+      }
+    ],
+    "sensors": [
+      {
+        "entity_id": "binary_sensor.front_door",
+        "type": "door",
+        "modes": ["armed_away"],
+        "use_exit_delay": true,
+        "use_entry_delay": true,
+        "always_on": false,
+        "arm_on_close": true,
+        "allow_open": false,
+        "trigger_unavailable": false,
+        "auto_bypass": false,
+        "auto_bypass_modes": [],
+        "area": "1700000000",
+        "enabled": true,
+        "entry_delay": null,
+        "delay_on": null
+      },
+      {
+        "entity_id": "binary_sensor.motion1",
+        "type": "motion",
+        "modes": ["armed_away"],
+        "use_exit_delay": true,
+        "use_entry_delay": true,
+        "always_on": false,
+        "arm_on_close": false,
+        "allow_open": false,
+        "trigger_unavailable": false,
+        "auto_bypass": false,
+        "auto_bypass_modes": [],
+        "area": "1700000000",
+        "enabled": true,
+        "entry_delay": 15,
+        "delay_on": 3
+      },
+      {
+        "entity_id": "binary_sensor.motion2",
+        "type": "motion",
+        "modes": ["armed_away"],
+        "use_exit_delay": true,
+        "use_entry_delay": true,
+        "always_on": false,
+        "arm_on_close": false,
+        "allow_open": false,
+        "trigger_unavailable": false,
+        "auto_bypass": false,
+        "auto_bypass_modes": [],
+        "area": "1700000000",
+        "enabled": true,
+        "entry_delay": 15,
+        "delay_on": null
+      },
+      {
+        "entity_id": "binary_sensor.disabled_sensor",
+        "type": "other",
+        "modes": [],
+        "use_exit_delay": true,
+        "use_entry_delay": true,
+        "always_on": false,
+        "arm_on_close": false,
+        "allow_open": false,
+        "trigger_unavailable": false,
+        "auto_bypass": false,
+        "auto_bypass_modes": [],
+        "area": "1700000000",
+        "enabled": false,
+        "entry_delay": null,
+        "delay_on": null
+      }
+    ],
+    "users": [
+      {
+        "user_id": "1700000001",
+        "name": "Alice",
+        "enabled": true,
+        "code": "JDJiJDEwJFFsL0QzenpKTVZyVXU0SmVHb3N1ZS5ZNEs4eWRRbkF6QWpPTGNIaUlOR0p5S0lVSnZRSW11",
+        "can_arm": true,
+        "can_disarm": true,
+        "is_override_code": false,
+        "code_format": "number",
+        "code_length": 4,
+        "area_limit": []
+      }
+    ],
+    "automations": [
+      {
+        "automation_id": "1700000002",
+        "type": "notification",
+        "name": "Notify on trigger",
+        "triggers": [{ "event": "trigger", "area": null, "modes": [] }],
+        "actions": [
+          {
+            "service": "notify.mobile_app",
+            "entity_id": null,
+            "data": { "message": "Alarm triggered!" }
+          }
+        ],
+        "enabled": true
+      },
+      {
+        "automation_id": "1700000003",
+        "type": "notification",
+        "name": "Notify on disarm",
+        "triggers": [{ "event": "disarm", "area": null, "modes": [] }],
+        "actions": [
+          {
+            "service": "notify.mobile_app",
+            "entity_id": null,
+            "data": { "message": "Disarmed" }
+          }
+        ],
+        "enabled": true
+      }
+    ],
+    "sensor_groups": [
+      {
+        "group_id": "1700000004",
+        "name": "Motion confirm",
+        "entities": ["binary_sensor.motion1", "binary_sensor.motion2"],
+        "timeout": 10,
+        "event_count": 2
+      }
+    ]
+  }
+}

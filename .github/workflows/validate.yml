@@ -1,0 +1,62 @@
+name: HA and HACS Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ha_and_hacs_validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+      
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
+      
+      - name: HACS validation
+        uses: hacs/action@22.5.0
+        with:
+          category: integration
+          ignore: brands
+
+  pytests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: latest
+
+      - name: Run tests
+        run: >
+          uv run python -m pytest tests/ -q
+          --cov=custom_components.midnight_alerts
+          --cov-report=term-missing
+          --cov-fail-under=100
+
+  formatting_and_linting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.1.0
+      - uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version: "0.16.1"
+
+  type_checking:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5.1.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: latest
+
+      - name: Run mypy
+        run: uv run mypy custom_components/midnight_alerts

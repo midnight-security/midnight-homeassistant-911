@@ -1,0 +1,92 @@
+blueprint:
+  name: Midnight Alarm - Retry Arm on Failed Arm
+  description: >-
+    Sends an actionable push notification when a Midnight Alarm area
+    aborts arming because a sensor without "use exit delay" is open -
+    tapping "Retry Arm" re-attempts arming into a mode you choose. The
+    equivalent of Alarmo's own actionable "failed to arm" notification.
+
+    Note: like Alarmo's own version of this feature (its README says the
+    same limitation applies to its actionable notifications), the retry
+    button isn't area-specific if you set this blueprint up for more than
+    one area - tapping it retries every area using this same blueprint.
+  domain: automation
+  source_url: https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/retry_arm_on_failed_to_arm.yaml
+  author: Midnight Security
+  input:
+    alarm_entity:
+      name: Midnight Alarm area
+      description: The alarm_control_panel entity to watch.
+      selector:
+        entity:
+          filter:
+            - domain: alarm_control_panel
+    retry_mode:
+      name: Mode to retry arming into
+      default: away
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Away
+              value: away
+            - label: Home
+              value: home
+            - label: Night
+              value: night
+            - label: Vacation
+              value: vacation
+            - label: Custom bypass
+              value: custom_bypass
+    notify_device:
+      name: Device to notify
+      description: Device needs to run the official Home Assistant app.
+      selector:
+        device:
+          filter:
+            integration: mobile_app
+
+mode: queued
+
+triggers:
+  - trigger: event
+    event_type: midnight_alerts_arm_failed
+    event_data:
+      entity_id: !input alarm_entity
+    id: arm_failed
+  - trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: MIDNIGHT_ALARM_RETRY_ARM
+    id: retry_pressed
+
+variables:
+  retry_mode: !input retry_mode
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: arm_failed
+        sequence:
+          - alias: "Send the actionable retry-arm notification"
+            domain: mobile_app
+            type: notify
+            device_id: !input notify_device
+            title: "Failed to arm"
+            message: >-
+              {{ state_attr(trigger.event.data.sensor, 'friendly_name') or
+              trigger.event.data.sensor }} is open - could not finish
+              arming.
+            data:
+              actions:
+                - action: MIDNIGHT_ALARM_RETRY_ARM
+                  title: "Retry Arm"
+      - conditions:
+          - condition: trigger
+            id: retry_pressed
+        sequence:
+          - alias: "Retry arming into the configured mode"
+            action: "alarm_control_panel.alarm_arm_{{ retry_mode }}"
+            target:
+              entity_id: !input alarm_entity

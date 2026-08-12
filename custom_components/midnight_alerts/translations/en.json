@@ -1,4 +1,16 @@
 {
+  "entity": {
+    "button": {
+      "trigger_alert": {
+        "name": "Trigger Alert"
+      }
+    },
+    "alarm_control_panel": {
+      "all_areas": {
+        "name": "All Areas"
+      }
+    }
+  },
   "config": {
     "step": {
       "user": {
@@ -6,11 +18,254 @@
         "description": "Enter your Midnight API key. Don't have one yet? [Get a key]({get_key_url}).",
         "data": {
           "api_key": "API Key"
+          "api_key": "API Key",
+          "enable_crash_reporting": "Send crash reports to Midnight Security"
+        },
+        "data_description": {
+          "api_key": "Leave blank to set up the alarm system (areas, sensors, PINs) without dispatching to Midnight yet - add a key anytime later from Reconfigure.",
+          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Reconfigure."
         }
       }
     },
+    "error": {
+      "invalid_auth": "Invalid API key",
+      "cannot_connect": "Failed to connect to Midnight Alerts",
+      "location_mismatch": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for this API key. Fix Home Assistant's location (Settings > System > General) or the address on your midnight.security account, then try again.",
+      "no_account_location": "No address is on file for this API key yet - finish setup at midnight.security before continuing."
+    },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Settings updated"
+    }
+  },
+  "config_subentries": {
+    "area": {
+      "entry_type": "Area",
+      "initiate_flow": {
+        "user": "Add area"
+      },
+      "step": {
+        "user": {
+          "title": "Add area",
+          "data": {
+            "name": "Name",
+            "enabled_modes": "Arm modes"
+          }
+        },
+        "reconfigure": {
+          "menu_options": {
+            "edit_timers": "Edit name and timers",
+            "manage_sensors": "Manage sensors"
+          }
+        },
+        "edit_timers": {
+          "title": "Edit timers",
+          "data": {
+            "name": "Name",
+            "enabled_modes": "Arm modes",
+            "exit_time": "Exit delay (seconds)",
+            "entry_time": "Entry delay (seconds)",
+            "trigger_time": "Trigger duration (seconds)"
+          },
+          "data_description": {
+            "exit_time": "How long to count down after arming before the area is fully armed",
+            "entry_time": "How long to count down after a sensor trips before the alarm actually triggers",
+            "trigger_time": "How long the alarm stays triggered before automatically resetting"
+          }
+        },
+        "manage_sensors": {
+          "title": "Manage sensors",
+          "data": {
+            "sensors": "Sensors",
+            "arm_on_close": "New sensors: hold arming open until closed",
+            "delay_on": "New sensors: debounce (seconds)",
+            "always_on": "New sensors: always on",
+            "entry_delay": "New sensors: entry delay override (seconds)",
+            "modes": "New sensors: arm modes"
+          },
+          "data_description": {
+            "arm_on_close": "If a newly-attached sensor is still open when the exit delay ends, wait for it to close instead of arming with it open",
+            "delay_on": "A newly-attached sensor must stay open this many seconds before it's treated as a real trip - filters a momentary blip. 0 disables debouncing",
+            "always_on": "This sensor triggers the alarm regardless of arm state, even while disarmed",
+            "entry_delay": "Overrides the area mode's own entry delay for just this sensor. Leave blank to use the area's default",
+            "modes": "Restrict this sensor to only trigger while armed in these modes. Leave blank for no restriction"
+          }
+        }
+      },
+      "abort": {
+        "sensors_updated": "Sensors updated"
+      }
+    },
+    "sensor_group": {
+      "entry_type": "Sensor group",
+      "initiate_flow": {
+        "user": "Add sensor group"
+      },
+      "step": {
+        "user": {
+          "title": "Add sensor group",
+          "data": {
+            "name": "Name",
+            "entities": "Member sensors",
+            "timeout": "Confirmation window (seconds)",
+            "event_count": "Sensors required to confirm",
+            "mode": "Confirmation mode"
+          },
+          "data_description": {
+            "entities": "Each of these must also be individually attached to the relevant area via that area's \"Manage sensors\" step",
+            "timeout": "How many seconds apart member trips can be and still count together",
+            "event_count": "How many members must trip within the window before it counts as one confirmed event",
+            "mode": "Count window: exactly event_count members must trip within the window above. Weighted decay: each member has its own weight instead - configured on the next step"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure sensor group",
+          "data": {
+            "name": "Name",
+            "entities": "Member sensors",
+            "timeout": "Confirmation window (seconds)",
+            "event_count": "Sensors required to confirm",
+            "mode": "Confirmation mode"
+          }
+        },
+        "weights": {
+          "title": "Set member weights",
+          "data": {
+            "decay_per_minute": "Decay per minute",
+            "threshold": "Confirmation threshold"
+          },
+          "data_description": {
+            "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
+            "threshold": "The alarm confirms once the running weighted score crosses this value"
+          }
+        },
+        "reconfigure_weights": {
+          "title": "Set member weights",
+          "data": {
+            "decay_per_minute": "Decay per minute",
+            "threshold": "Confirmation threshold"
+          },
+          "data_description": {
+            "decay_per_minute": "How much a member's contribution to the score drops per minute since its last trip",
+            "threshold": "The alarm confirms once the running weighted score crosses this value"
+          }
+        }
+      }
+    },
+    "alarmo_import": {
+      "entry_type": "Import from Alarmo",
+      "initiate_flow": {
+        "user": "Import from Alarmo"
+      },
+      "step": {
+        "user": {
+          "title": "Import from Alarmo",
+          "description": "Found {areas} area(s), {users} user(s), {sensor_groups} sensor group(s), and {sensors} sensor(s) to import. PINs carry over and keep working immediately. {automations_skipped} Alarmo automation(s) will NOT be imported - recreate the ones you still need as ordinary Home Assistant automations."
+        }
+      },
+      "abort": {
+        "alarmo_not_found": "No Alarmo storage file was found - Alarmo doesn't appear to be installed on this Home Assistant instance",
+        "alarmo_version_mismatch": "Alarmo's storage is a version this importer doesn't understand - open Alarmo once to let it finish migrating, then try again",
+        "already_imported": "This Alarmo configuration has already been imported - nothing to do",
+        "import_complete": "Imported {areas} area(s), {users} user(s), {sensor_groups} sensor group(s), and {sensors} sensor(s) ({sensors_skipped} sensor(s) skipped - not found in this Home Assistant instance). {automations_skipped} automation(s) were not imported."
+      }
+    },
+    "user": {
+      "entry_type": "User",
+      "initiate_flow": {
+        "user": "Add user"
+      },
+      "step": {
+        "user": {
+          "title": "Add user",
+          "data": {
+            "name": "Name",
+            "code": "PIN code",
+            "can_arm": "Can arm",
+            "can_disarm": "Can disarm",
+            "is_override_code": "Override code",
+            "enabled": "Enabled",
+            "area_limit": "Areas"
+          },
+          "data_description": {
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm",
+            "area_limit": "Restrict this code to specific areas. Leave blank for no restriction"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure user",
+          "data": {
+            "name": "Name",
+            "code": "New PIN code",
+            "can_arm": "Can arm",
+            "can_disarm": "Can disarm",
+            "is_override_code": "Override code",
+            "enabled": "Enabled",
+            "area_limit": "Areas"
+          },
+          "data_description": {
+            "code": "Leave blank to keep the current PIN unchanged",
+            "is_override_code": "When arming with this code, open sensors are bypassed instead of blocking the arm",
+            "area_limit": "Restrict this code to specific areas. Leave blank for no restriction"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "arm_modes": {
+      "options": {
+        "armed_away": "Away",
+        "armed_home": "Home",
+        "armed_night": "Night",
+        "armed_vacation": "Vacation",
+        "armed_custom_bypass": "Custom bypass"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_code": {
+      "message": "Invalid or unauthorized code"
+    }
+  },
+  "issues": {
+    "location_mismatch": {
+      "title": "Home Assistant's location doesn't match the address on file",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix the location mismatch",
+            "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under [Settings > System > General](/config/general), or update the address on your midnight.security account. Which side needs fixing?",
+            "menu_options": {
+              "update_key": "Swap in a different API key",
+              "recheck": "I've already fixed the address or Home Assistant's location - recheck now"
+            }
+          }
+        },
+        "abort": {
+          "reauth_started": "Re-authentication started - reopen this repair once you've entered the new key to confirm it resolved the mismatch.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 Integration for a Reauthenticate prompt, or wait a few minutes for it to expire and try again.",
+          "still_mismatched": "Still more than 1000 feet apart - double check the address on your midnight.security account and Home Assistant's location, then try again.",
+          "resolved": "Locations now match. Issue resolved."
+        }
+      }
+    },
+    "no_api_key": {
+      "title": "Midnight 911 can't send alerts yet - no API key",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Add your API key",
+            "description": "This instance was set up without an API key, so the **Trigger Alert** button won't do anything yet - the alarm system itself (areas, sensors, PINs, arming/disarming) already works fully regardless. Select **Submit** to add one now."
+          }
+        },
+        "abort": {
+          "reauth_started": "Opening the form to add your key - this issue clears itself once a working one is saved.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 Integration for a Reauthenticate prompt, or wait a few minutes for it to expire and try again."
+        }
+      }
+>>>>>>> refs/remotes/origin/master
     }
   }
 }

@@ -1,16 +1,15 @@
 """API client for Midnight Alerts."""
+
 import logging
+from typing import Any
 
 from aiohttp import ClientError, ClientSession
 
+from . import error_reporting
+
 _LOGGER = logging.getLogger(__name__)
 
-# alerts.midnight.security still points at the old, decommissioned
-# midnight-noo-api Railway service (502s). dev.api.midnight.security is the
-# dev-environment equivalent of api.midnight.security (proxies to the
-# `develop` branch Supabase project) -- matches dev.app.midnight.security,
-# which is what all API keys/HA testing has actually been done against.
-BASE_URL = "https://dev.api.midnight.security/functions/v1"
+BASE_URL = "https://api.midnight.security/functions/v1"
 
 
 class MidnightAlertsApiError(Exception):
@@ -24,19 +23,49 @@ class MidnightAlertsAuthError(MidnightAlertsApiError):
 class MidnightAlertsApiClient:
     """Client for the Midnight Alerts API."""
 
-    def __init__(self, api_key: str, session: ClientSession) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        session: ClientSession,
+        *,
+        report_errors: bool = False,
+        release: str | None = None,
+    ) -> None:
+        """Create a client bound to a single API key and aiohttp session."""
         self._api_key = api_key
         self._session = session
+        self._report_errors = report_errors
+        self._release = release
 
-    async def async_validate(self) -> None:
-        """Validate the API key, raising if it is rejected."""
-        await self._async_request("GET", "oauth/token")
+    @property
+    def is_configured(self) -> bool:
+        """Whether an API key has actually been set.
+
+        The integration can be added with this blank (the alarm engine
+        works entirely locally regardless), so callers that would otherwise
+        make a doomed request - the button, mainly - can check this first.
+        """
+        return bool(self._api_key)
+
+    async def async_validate(self, *, latitude: float, longitude: float) -> dict:
+        """Validate the API key, raising if it is rejected.
+
+        Sends this Home Assistant instance's own configured location so the
+        server can check it against the address on file for the account -
+        that comparison lives entirely server-side, not in this client.
+        Returns the response body, e.g. {"valid": true, "location_match":
+        true | false | null} - null means there was nothing to compare
+        (e.g. no address on file yet).
+        """
+        return await self._async_request(
+            "GET", "validate", params={"lat": latitude, "lng": longitude}
+        )
 
     async def async_trigger_alert(self, payload: dict) -> None:
         """Trigger an alert."""
         await self._async_request("POST", "alerts", json=payload)
 
-    async def _async_request(self, method: str, path: str, **kwargs) -> None:
+    async def _async_request(self, method: str, path: str, **kwargs: Any) -> dict:
         url = f"{BASE_URL}/{path}"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -49,8 +78,37 @@ class MidnightAlertsApiClient:
                 if resp.status in (401, 403):
                     raise MidnightAlertsAuthError(f"Invalid API key ({resp.status})")
                 if resp.status != 200:
-                    raise MidnightAlertsApiError(
-                        f"{method} {path} failed: {resp.status} {await resp.text()}"
+                    # The body is often an upstream gateway's raw HTML error
+                    # page (e.g. an nginx 502), not anything meant for a
+                    # user - keep that out of the exception message HA shows
+                    # verbatim in the UI, but keep it in the debug log for
+                    # actually troubleshooting.
+                    body = await resp.text()
+                    _LOGGER.debug(
+                        "Midnight Alerts %s %s returned %s: %s",
+                        method,
+                        path,
+                        resp.status,
+                        body,
                     )
+                    raise MidnightAlertsApiError(
+                        f"{method} {path} failed with HTTP {resp.status}"
+                    )
+                return await resp.json()
         except ClientError as err:
-            raise MidnightAlertsApiError(f"Error connecting to API: {err}") from err
+            wrapped = MidnightAlertsApiError(f"Error connecting to API: {err}")
+            error_reporting.report_exception(
+                wrapped,
+                operation=path,
+                enabled=self._report_errors,
+                release=self._release,
+            )
+            raise wrapped from err
+        except MidnightAlertsApiError as err:
+            error_reporting.report_exception(
+                err,
+                operation=path,
+                enabled=self._report_errors,
+                release=self._release,
+            )
+            raise

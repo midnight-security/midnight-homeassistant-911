@@ -1,0 +1,118 @@
+# Path to Home Assistant Core
+
+This document tracks what's required to move `midnight_alerts` from a
+HACS-distributed custom integration into `home-assistant/core`.
+
+Status of individual rules is tracked in [`quality_scale.yaml`](quality_scale.yaml),
+which follows the same format Home Assistant Core uses to validate
+integrations via `hassfest`. This file explains the process and the "why"
+behind each requirement.
+
+## Process overview
+
+1. Meet **Bronze** tier on the [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) — this is the mandatory minimum for any new integration, not an optional goal.
+2. Add brand assets — done, at `custom_components/midnight_alerts/brand/` (icon/logo, dark variants, `@2x`). As of Home Assistant 2026.3.0 (see the [Brands Proxy API announcement](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api)), a `brand/` folder bundled directly in the integration is read automatically and takes priority over the `home-assistant/brands` CDN — no manifest key or extra config needed. **This requires HA Core 2026.3.0+; anything older won't display it.** Filing a PR against [home-assistant/brands](https://github.com/home-assistant/brands) is now a legacy fallback for pre-2026.3 instances, not required for this to work going forward.
+3. Write documentation for [home-assistant/home-assistant.io](https://github.com/home-assistant/home-assistant.io) — draft lives at [`docs/midnight_alerts.markdown`](docs/midnight_alerts.markdown), to be submitted as its own PR against that repo once Bronze is met.
+4. Open a PR to [home-assistant/core](https://github.com/home-assistant/core) moving the integration from `custom_components/midnight_alerts` to `homeassistant/components/midnight_alerts`.
+5. Integration owner: `@midnight-security/midnight-team` (see `manifest.json` and `.github/CODEOWNERS`) — both individual GitHub usernames and org teams are accepted as codeowners.
+
+## Bronze tier — required now
+
+| Rule | Requirement | Status |
+|---|---|---|
+| `config-flow` | Set up via the UI | Done |
+| `unique-config-entry` | Prevent duplicate setup | Done |
+| `entity-unique-id` | Entities have a stable unique ID | Done |
+| `has-entity-name` | Entities set `has_entity_name = True` | Done |
+| `test-before-configure` | Config flow tests the connection before creating the entry | Done |
+| `test-before-setup` | `async_setup_entry` verifies connectivity before completing setup | Done |
+| `runtime-data` | Use `ConfigEntry.runtime_data`, not `hass.data[DOMAIN]` | Done |
+| `config-flow-test-coverage` | Automated tests cover the config flow | Done — `tests/components/midnight_alerts/test_config_flow.py`, 100% line coverage of `config_flow.py` |
+| `brands` | Branding assets available | Done — `custom_components/midnight_alerts/brand/` |
+| `dependency-transparency` | Third-party API code lives in a documented, pinned dependency rather than inline in the integration | **Todo** — see note below |
+| `docs-high-level-description` | Docs describe the product/service at a high level | Done — `docs/midnight_alerts.markdown` |
+| `docs-installation-instructions` | Step-by-step setup instructions | Done — `docs/midnight_alerts.markdown` |
+| `docs-removal-instructions` | How to remove the integration | Done — `docs/midnight_alerts.markdown` |
+| `action-setup` | Service actions registered in `async_setup` | Exempt — no custom service actions |
+| `appropriate-polling` | Sensible polling interval | Exempt — `cloud_push`, not polling |
+| `docs-actions` / `docs-triggers` / `docs-conditions` | Docs for services/triggers/conditions | Exempt — none provided |
+| `common-modules` | Shared patterns live in common modules | Done — `pin.py`, `sensors.py`, `alarm_state.py`, `sensor_groups.py`, `alarmo_import.py` |
+| `entity-event-setup` | Entity events subscribed in correct lifecycle method | Done — both platforms are push/callback-driven, no polling |
+
+### Note on `dependency-transparency`
+
+Home Assistant's actual new-integration PR checklist states: *"All API
+specific code has to be part of a third party library hosted on PyPi."*
+Right now `api.py`'s `MidnightAlertsApiClient` lives directly inside the
+component. Satisfying this rule for real means extracting that client into
+its own published PyPI package and depending on it via `requirements` in
+`manifest.json` — a separate, larger effort from the rest of this checklist
+(see "Not today" below).
+
+## Silver / Gold / Platinum — roadmap, not required for initial acceptance
+
+Tracked in `quality_scale.yaml` for completeness, but none of these block
+getting into core. `action-exceptions`, `parallel-updates`, `diagnostics`,
+`entity-translations`, `exception-translations`, `test-coverage` (100%
+overall), `repair-issues` (the "location_mismatch" repair issue), and
+`reauthentication-flow` (`async_step_reauth` delegates to `async_step_user`,
+the openexchangerates pattern) are done. `stale-devices` and the docs-*
+rules (`docs-high-level-description`, `docs-installation-instructions`,
+`docs-installation-parameters`, `docs-configuration-parameters`,
+`docs-supported-functions`, `docs-use-cases`, `docs-troubleshooting`,
+`docs-known-limitations`) are also done, now that
+`docs/midnight_alerts.markdown` actually documents the alarm feature
+(areas, users/PINs, sensor groups, Alarmo import, the
+location-verification check, and the crash-reporting option) instead of
+only the original button.
+
+`entity-unavailable` and `log-when-unavailable` are exempt — the alarm
+area entity makes no network calls at all, and the button (the only
+entity that does) deliberately never tracks availability from its own
+press outcome, since HA's entity_service_call dispatch filters out
+unavailable entities before invoking them and this button has no
+polling/coordinator to ever retry and flip it back - see the comment on
+`MidnightAlertButton` in `button.py`.
+
+`async-dependency` (Platinum) is also done - it turned out not to depend on
+the PyPI extraction after all. The rule is about whether device/service
+communication uses asyncio, not about that code living in a separate
+package (checked against the rule's own doc text). `api.py` already talks
+to the network exclusively through an injected `aiohttp.ClientSession`,
+`bcrypt` is already routed through `hass.async_add_executor_job`, and
+`sentry_sdk`'s `capture_exception` only enqueues onto its own background
+worker thread rather than blocking the event loop (verified directly
+against the installed `sentry_sdk` source). See the `async-dependency`
+comment in `quality_scale.yaml` for the full reasoning.
+
+`strict-typing` (Platinum) is also done now - see its `quality_scale.yaml`
+comment for the mypy setup. `reconfiguration-flow`
+is now done — the config flow accepts a blank API key at setup (the alarm
+engine works fully locally either way) and `async_step_reconfigure` lets
+one be added or changed afterward without removing and re-adding the
+entry. `icon-translations` is also done — `icons.json` now maps
+`entity.button.trigger_alert.default` to `"mdi:alert"`, replacing the
+hardcoded `_attr_icon` on the button; the two `alarm_control_panel`
+entities never set `_attr_icon` and already relied on HA's built-in
+state-based icons for that domain, so they needed no change.
+`dynamic-devices` is resolved as exempt — the rule's own docs describe it
+as automatic entity creation once a backend/external service discovers
+new hardware, not devices created by direct user action in a config
+subentry flow, and ntfy's own `quality_scale.yaml` marks this exact
+per-subentry-device shape exempt with "devices are added manually as
+subentries" (see the comment in `quality_scale.yaml`).
+
+## Not today — separate coding sessions
+
+- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap) - the only remaining item blocking Bronze
+
+## Housekeeping before the actual `home-assistant/core` PR
+
+- Remove the `version` field from `manifest.json` (core integrations don't
+  carry one — it's a HACS/custom-integration-only field). Do **not** remove
+  it now; it's still needed for this repo's own semantic-release/HACS
+  pipeline until the day the code actually moves into core.
+- Update `manifest.json`'s `documentation` field to point at the real
+  `https://www.home-assistant.io/integrations/midnight_alerts/` URL once
+  the docs PR is merged, instead of this repo's own `docs/` file.
+- Add a `quality_scale` field to `manifest.json` once Bronze is actually met.
