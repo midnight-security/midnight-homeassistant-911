@@ -4,15 +4,13 @@ Thank you for helping improve the Midnight 911 Home Assistant integration.
 
 ## Development setup
 
-1. Create a virtualenv and install the same deps CI uses (Python 3.14):
+1. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/), then
+   sync the same deps CI uses (Python 3.14):
    ```bash
-   python3.14 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements_test.txt
-   pip install sentry-sdk==2.66.1 bcrypt==4.3.0
+   uv sync
    ```
    `pytest-homeassistant-custom-component` pulls in a matching Home Assistant
-   core, so the venv also gives you a local `hass` binary.
+   core, so the venv also gives you a local `hass` binary at `.venv/bin/hass`.
 2. Point a throwaway Home Assistant config directory at this checkout by
    symlinking the integration in:
    ```bash
@@ -40,8 +38,7 @@ Logs land in `.ha_dev_config/home-assistant.log`.
 ## Running tests
 
 ```bash
-source .venv/bin/activate
-python -m pytest tests/ -q
+uv run pytest tests/ -q
 ```
 
 ## Branch workflow
