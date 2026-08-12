@@ -74,16 +74,21 @@ unavailable entities before invoking them and this button has no
 polling/coordinator to ever retry and flip it back - see the comment on
 `MidnightAlertButton` in `button.py`.
 
-Still open, to revisit later: `icon-translations` (Gold), `strict-typing`
-(Platinum). `reconfiguration-flow` is now done — the config flow accepts a
-blank API key at setup (the alarm engine works fully locally either way)
-and `async_step_reconfigure` lets one be added or changed afterward
-without removing and re-adding the entry.
-`dynamic-devices` is flagged but not resolved — each area subentry gets
-its own device added/removed live, and real core integrations disagree on
-whether that counts as "dynamic" for this rule (see the comment in
-`quality_scale.yaml`); needs an actual read of the rule's intent rather
-than a guess.
+Still open, to revisit later: `strict-typing` (Platinum). `reconfiguration-flow`
+is now done — the config flow accepts a blank API key at setup (the alarm
+engine works fully locally either way) and `async_step_reconfigure` lets
+one be added or changed afterward without removing and re-adding the
+entry. `icon-translations` is also done — `icons.json` now maps
+`entity.button.trigger_alert.default` to `"mdi:alert"`, replacing the
+hardcoded `_attr_icon` on the button; the two `alarm_control_panel`
+entities never set `_attr_icon` and already relied on HA's built-in
+state-based icons for that domain, so they needed no change.
+`dynamic-devices` is resolved as exempt — the rule's own docs describe it
+as automatic entity creation once a backend/external service discovers
+new hardware, not devices created by direct user action in a config
+subentry flow, and ntfy's own `quality_scale.yaml` marks this exact
+per-subentry-device shape exempt with "devices are added manually as
+subentries" (see the comment in `quality_scale.yaml`).
 
 ## Not today — separate coding sessions
 

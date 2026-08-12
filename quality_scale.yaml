@@ -241,17 +241,20 @@ rules:
       "without needing a dedicated alarm panel" - now also covers running
       a full alarm system and migrating from Alarmo.
   dynamic-devices:
-    status: todo
+    status: exempt
     comment: >-
-      Not confidently exempt: each area subentry gets its own device,
-      added/removed live without a restart - structurally identical to
-      ntfy's per-topic-subentry devices, and ntfy's own quality_scale.yaml
-      marks this rule `todo` rather than exempt for that exact shape.
-      bosch_alarm marks it exempt, but its partitions are
-      fixed/panel-discovered at connect time, not a close match. Needs a
-      real read of the rule's intent (does user-initiated, in-app subentry
-      creation count as "dynamic," or is this only about devices a backend
-      introduces without user action?) rather than a guess.
+      Resolved the open question from the previous comment: the rule's own
+      docs describe it as "once a new device is connected, we should
+      automatically create the relevant entities for the device" - i.e.
+      automatic provisioning when a backend/external service discovers
+      hardware Home Assistant didn't know about, paired with
+      stale-devices for automatic removal once it's gone. Each area
+      subentry's device here is created by direct user action in the
+      config subentry flow, not backend discovery, so it's out of scope -
+      matching ntfy's own quality_scale.yaml, which marks this exact
+      per-subentry-device shape exempt with "devices are added manually as
+      subentries" (the previous comment had this backwards: it claimed
+      ntfy marked it `todo`).
   entity-category:
     status: done
     comment: >-
@@ -281,8 +284,14 @@ rules:
       translation_key="invalid_code", backed by exceptions.invalid_code in
       translations/en.json.
   icon-translations:
-    status: todo
-    comment: button.py uses a hardcoded _attr_icon instead of icons.json.
+    status: done
+    comment: >-
+      icons.json now maps entity.button.trigger_alert.default to "mdi:alert",
+      keyed off the translation_key button.py already had - the hardcoded
+      _attr_icon is gone. The two alarm_control_panel entities never set
+      _attr_icon in the first place, so they already relied on HA's
+      built-in state-based icons for that domain (armed/disarmed/
+      triggered/pending) and needed no change.
   reconfiguration-flow:
     status: done
     comment: >-

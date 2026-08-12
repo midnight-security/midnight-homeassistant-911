@@ -43,7 +43,6 @@ class MidnightAlertButton(ButtonEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "trigger_alert"
-    _attr_icon = "mdi:alert"
 
     def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient) -> None:
         """Bind this button entity to a config entry and API client."""
