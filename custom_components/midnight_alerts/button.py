@@ -1,6 +1,7 @@
 """Button platform for Midnight Alerts."""
 
 import logging
+from typing import override
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -58,6 +59,7 @@ class MidnightAlertButton(ButtonEntity):
             entry_type=DeviceEntryType.SERVICE,
         )
 
+    @override
     async def async_press(self) -> None:
         """Trigger the alert when button is pressed."""
         if not self._client.is_configured:

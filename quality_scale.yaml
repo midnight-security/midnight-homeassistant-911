@@ -343,9 +343,48 @@ rules:
 
   # Platinum
   async-dependency:
-    status: todo
-    comment: Depends on the dependency-transparency PyPI extraction happening first.
+    status: done
+    comment: >-
+      The rule is about whether device/service communication uses asyncio,
+      not about that code living in a separate PyPI package (confirmed
+      against the rule's own doc text) - so this doesn't actually wait on
+      dependency-transparency, despite the previous comment here. api.py's
+      MidnightAlertsApiClient does all of its HTTP communication through an
+      injected aiohttp.ClientSession (see inject-websession) with no
+      synchronous fallback. Of the two real third-party requirements,
+      neither does the device/service communication this rule targets:
+      bcrypt's calls are already routed through
+      hass.async_add_executor_job (pin.py's async_hash_code /
+      async_validate_code), and sentry_sdk's capture_exception only
+      serializes an event and hands it to sentry_sdk's own
+      BackgroundWorker queue - verified in the installed sentry_sdk
+      source (worker.py, transport.py's HttpTransport.capture_envelope)
+      that the actual HTTP send happens on that worker's own thread, never
+      synchronously on the event loop.
   inject-websession: done
   strict-typing:
-    status: todo
-    comment: No mypy configuration exists yet.
+    status: done
+    comment: >-
+      pyproject.toml's [tool.mypy] mirrors the exact per-component override
+      flags HA core's own hassfest applies to anything listed in its
+      .strict-typing file (check_untyped_defs, disallow_incomplete_defs,
+      disallow_subclassing_any, disallow_untyped_calls,
+      disallow_untyped_decorators, disallow_untyped_defs, warn_return_any,
+      warn_unreachable - confirmed against core's actual generated
+      mypy.ini), scoped to custom_components.midnight_alerts.*. __init__.py
+      already had the typed runtime-data ConfigEntry this rule specifically
+      calls out (type MidnightAlertsConfigEntry = ConfigEntry[...]).
+      Getting to a clean `uv run mypy custom_components/midnight_alerts`
+      surfaced real gaps, not just missing annotations: alarm_control_panel.py
+      was overriding Entity.async_write_ha_state, which is @final in current
+      HA core (its own docstring says to override _async_write_ha_state
+      instead) - fixed, not suppressed. Also switched alarm_control_panel.py
+      from AddEntitiesCallback to AddConfigEntryEntitiesCallback (the
+      config_subentry_id kwarg it actually calls only exists on the latter),
+      wrapped alarmo_import.py's ConfigSubentry construction in
+      MappingProxyType, and moved repairs.py's two flows from reading
+      self.data (typed dict[str, str | int | float | None] | None) to a
+      validated entry_id passed through their own __init__ - the same shape
+      HA core's own repair flows use. Wired into CI as its own
+      `type_checking` job in validate.yml, alongside the existing pytest and
+      ruff jobs.

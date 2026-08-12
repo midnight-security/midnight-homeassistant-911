@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="custom_components/midnight_alerts/brand/dark_logo.png">
-    <img src="custom_components/midnight_alerts/brand/logo.png" alt="Midnight" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="img/logo-dark.svg">
+    <img src="img/logo-light.svg" alt="Midnight" width="280">
   </picture>
 </p>
 

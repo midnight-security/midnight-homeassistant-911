@@ -24,10 +24,11 @@ string.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sentry_sdk import Scope
+    from sentry_sdk.types import Hint, Event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,21 +39,27 @@ _SCRUB_KEYS = {"address", "lat", "lng", "authorization", "api_key"}
 _scope: Scope | None = None
 
 
-def _before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
+def _before_send(event: Event, hint: Hint) -> Event | None:
     """Strip anything that could contain PII or credentials, defense in depth."""
     request = event.get("request")
-    if isinstance(request, dict) and isinstance(request.get("headers"), dict):
-        request["headers"] = {
-            key: value
-            for key, value in request["headers"].items()
-            if key.lower() not in _SCRUB_KEYS
-        }
-    for section in ("extra", "contexts"):
-        data = event.get(section)
-        if isinstance(data, dict):
-            for key in list(data):
-                if key.lower() in _SCRUB_KEYS:
-                    data.pop(key)
+    if isinstance(request, dict):
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            request["headers"] = {
+                key: value
+                for key, value in headers.items()
+                if key.lower() not in _SCRUB_KEYS
+            }
+    extra = event.get("extra")
+    if isinstance(extra, dict):
+        for key in list(extra):
+            if key.lower() in _SCRUB_KEYS:
+                extra.pop(key)
+    contexts = event.get("contexts")
+    if isinstance(contexts, dict):
+        for key in list(contexts):
+            if key.lower() in _SCRUB_KEYS:
+                contexts.pop(key)
     return event
 
 

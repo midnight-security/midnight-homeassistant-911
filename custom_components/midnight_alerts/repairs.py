@@ -34,6 +34,22 @@ from . import NO_API_KEY_ISSUE_ID
 from .const import DOMAIN
 
 
+def _entry_id_from(data: dict[str, str | int | float | None] | None) -> str:
+    """Pull entry_id back out of the issue data these flows are always created with.
+
+    RepairsFlowManager.async_create_flow passes the issue's own `data` dict
+    straight through to `async_create_fix_flow` below - both of our issues
+    are always raised with data={"entry_id": entry.entry_id} (see
+    __init__.py), so this narrows the protocol's loosely-typed
+    `dict[str, str | int | float | None] | None` back to the `str` it
+    always actually is here, once instead of at every call site.
+    """
+    assert data is not None
+    entry_id = data["entry_id"]
+    assert isinstance(entry_id, str)
+    return entry_id
+
+
 def _async_start_reauth_and_get_reason(hass: HomeAssistant, entry_id: str) -> str:
     """Start reauth for entry_id, unless one's already in progress.
 
@@ -66,6 +82,11 @@ class LocationMismatchRepairFlow(RepairsFlow):
     False) clear the issue when it's actually true.
     """
 
+    def __init__(self, entry_id: str) -> None:
+        """Bind this flow to the config entry the issue was raised for."""
+        super().__init__()
+        self._entry_id = entry_id
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
@@ -79,14 +100,14 @@ class LocationMismatchRepairFlow(RepairsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
         """Start the same reauth flow used when the key itself is rejected."""
-        reason = _async_start_reauth_and_get_reason(self.hass, self.data["entry_id"])
+        reason = _async_start_reauth_and_get_reason(self.hass, self._entry_id)
         return self.async_abort(reason=reason)
 
     async def async_step_recheck(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
         """Reload the entry to recheck - leave the issue alone either way."""
-        await self.hass.config_entries.async_reload(self.data["entry_id"])
+        await self.hass.config_entries.async_reload(self._entry_id)
 
         issue_registry = ir.async_get(self.hass)
         if issue_registry.async_get_issue(DOMAIN, self.issue_id) is not None:
@@ -103,6 +124,11 @@ class NoApiKeyRepairFlow(RepairsFlow):
     doesn't add the key by itself, so the issue must survive until
     __init__.py's own async_delete_issue actually clears it.
     """
+
+    def __init__(self, entry_id: str) -> None:
+        """Bind this flow to the config entry the issue was raised for."""
+        super().__init__()
+        self._entry_id = entry_id
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -122,9 +148,7 @@ class NoApiKeyRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         """Confirm, then start the same reauth flow used for a rejected key."""
         if user_input is not None:
-            reason = _async_start_reauth_and_get_reason(
-                self.hass, self.data["entry_id"]
-            )
+            reason = _async_start_reauth_and_get_reason(self.hass, self._entry_id)
             return self.async_abort(reason=reason)
         return self.async_show_form(step_id="confirm", data_schema=vol.Schema({}))
 
@@ -132,9 +156,10 @@ class NoApiKeyRepairFlow(RepairsFlow):
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
-    data: dict[str, Any] | None,
+    data: dict[str, str | int | float | None] | None,
 ) -> RepairsFlow:
     """Return the repair flow for a given issue id."""
+    entry_id = _entry_id_from(data)
     if issue_id == NO_API_KEY_ISSUE_ID:
-        return NoApiKeyRepairFlow()
-    return LocationMismatchRepairFlow()
+        return NoApiKeyRepairFlow(entry_id)
+    return LocationMismatchRepairFlow(entry_id)

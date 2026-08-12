@@ -74,7 +74,19 @@ unavailable entities before invoking them and this button has no
 polling/coordinator to ever retry and flip it back - see the comment on
 `MidnightAlertButton` in `button.py`.
 
-Still open, to revisit later: `strict-typing` (Platinum). `reconfiguration-flow`
+`async-dependency` (Platinum) is also done - it turned out not to depend on
+the PyPI extraction after all. The rule is about whether device/service
+communication uses asyncio, not about that code living in a separate
+package (checked against the rule's own doc text). `api.py` already talks
+to the network exclusively through an injected `aiohttp.ClientSession`,
+`bcrypt` is already routed through `hass.async_add_executor_job`, and
+`sentry_sdk`'s `capture_exception` only enqueues onto its own background
+worker thread rather than blocking the event loop (verified directly
+against the installed `sentry_sdk` source). See the `async-dependency`
+comment in `quality_scale.yaml` for the full reasoning.
+
+`strict-typing` (Platinum) is also done now - see its `quality_scale.yaml`
+comment for the mypy setup. `reconfiguration-flow`
 is now done — the config flow accepts a blank API key at setup (the alarm
 engine works fully locally either way) and `async_step_reconfigure` lets
 one be added or changed afterward without removing and re-adding the
@@ -92,8 +104,7 @@ subentries" (see the comment in `quality_scale.yaml`).
 
 ## Not today — separate coding sessions
 
-- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap)
-- Add `strict-typing` (mypy) once the above lands
+- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap) - the only remaining item blocking Bronze
 
 ## Housekeeping before the actual `home-assistant/core` PR
 

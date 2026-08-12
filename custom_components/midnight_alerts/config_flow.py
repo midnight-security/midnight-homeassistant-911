@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -11,10 +11,10 @@ from homeassistant.helpers import selector
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigSubentry,
+    ConfigFlowResult,
     ConfigSubentryFlow,
     SubentryFlowResult,
 )
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import pin, sensors, alarmo_import
@@ -85,7 +85,8 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None) -> FlowResult:
+    @override
+    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Handle the initial step - also reused for reauth/reconfigure.
 
         Crash reporting is asked here, alongside the API key, at both
@@ -150,7 +151,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_finish(
         self, user_input: dict[str, Any], enable_crash_reporting: bool | None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Create the entry, or update+reload an existing one on reauth/reconfigure.
 
         enable_crash_reporting is None only on reauth - that's the one
@@ -207,7 +208,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_reauth(self, entry_data) -> FlowResult:
+    async def async_step_reauth(self, entry_data) -> ConfigFlowResult:
         """Handle reauth when the stored API key stops validating.
 
         Home Assistant core triggers this automatically whenever
@@ -217,7 +218,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         return await self.async_step_user()
 
-    async def async_step_reconfigure(self, user_input=None) -> FlowResult:
+    async def async_step_reconfigure(self, user_input=None) -> ConfigFlowResult:
         """Handle a user-initiated edit of the API key and/or crash reporting.
 
         The one place to change either after initial setup - there's no
@@ -233,6 +234,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @classmethod
     @callback
+    @override
     def async_get_supported_subentry_types(
         cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
@@ -441,6 +443,9 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Reconfigure step 2: exit/entry/trigger time, per enabled mode."""
+        # Only ever reachable via async_step_edit_timers, which always sets
+        # this immediately before returning here.
+        assert self._pending_subentry is not None
         subentry = self._pending_subentry
         enabled_modes = self._pending_data["enabled_modes"]
         modes_data = subentry.data.get(CONF_MODES, {})
@@ -540,7 +545,7 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
 
 def _area_limit_selector(entry: ConfigEntry) -> selector.SelectSelector:
     """Multi-select of the entry's current areas, by subentry_id."""
-    options = [
+    options: list[selector.SelectOptionDict] = [
         {"value": subentry.subentry_id, "label": subentry.title}
         for subentry in entry.subentries.values()
         if subentry.subentry_type == SUBENTRY_TYPE_AREA
@@ -729,6 +734,9 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Second reconfigure step for a weighted_decay group."""
+        # Only ever reachable via async_step_reconfigure, which always sets
+        # this immediately before returning here.
+        assert self._pending_subentry is not None
         subentry = self._pending_subentry
         entities = self._pending_data[CONF_ENTITIES]
         if user_input is not None:
