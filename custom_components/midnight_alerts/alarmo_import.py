@@ -21,48 +21,49 @@ automations engine is one of the anti-patterns this whole platform exists
 to avoid) - they're only counted, so the user knows to recreate the ones
 they still need as real HA automations.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
 from typing import Any
+from dataclasses import field, dataclass
 
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from . import sensors
 from .const import (
-    ALARMO_STORAGE_VERSION,
-    CONF_ALLOW_OPEN,
-    CONF_ALWAYS_ON,
-    CONF_AREA_LIMIT,
-    CONF_AREA_SUBENTRY_ID,
-    CONF_ARM_ON_CLOSE,
-    CONF_CAN_ARM,
-    CONF_CAN_DISARM,
     CONF_CODE,
-    CONF_DELAY_ON,
+    CONF_NAME,
+    CONF_MODES,
+    CONF_CAN_ARM,
     CONF_ENABLED,
+    CONF_TIMEOUT,
+    CONF_DELAY_ON,
     CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_EXIT_TIME,
+    CONF_ALLOW_OPEN,
+    CONF_AREA_LIMIT,
+    CONF_CAN_DISARM,
     CONF_ENTRY_TIME,
     CONF_EVENT_COUNT,
-    CONF_EXIT_TIME,
-    CONF_IS_OVERRIDE_CODE,
-    CONF_MODES,
-    CONF_NAME,
-    CONF_SENSOR_ENTRY_DELAY,
     CONF_SENSOR_TYPE,
-    CONF_TIMEOUT,
+    CONF_ARM_ON_CLOSE,
     CONF_TRIGGER_TIME,
-    CONF_USE_ENTRY_DELAY,
-    CONF_USE_EXIT_DELAY,
-    DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
-    DEFAULT_TRIGGER_TIME,
+    DEFAULT_ENTRY_TIME,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    CONF_USE_EXIT_DELAY,
+    CONF_USE_ENTRY_DELAY,
+    DEFAULT_TRIGGER_TIME,
+    CONF_AREA_SUBENTRY_ID,
+    CONF_IS_OVERRIDE_CODE,
+    ALARMO_STORAGE_VERSION,
+    CONF_SENSOR_ENTRY_DELAY,
+    SUBENTRY_TYPE_SENSOR_GROUP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ _ALARMO_MODES = (
 
 @dataclass
 class SensorImport:
-    """One sensor's alarm-specific options, ready for sensors.async_set_sensor_options."""
+    """One sensor's alarm options, ready for sensors.async_set_sensor_options."""
 
     entity_id: str
     options: dict[str, Any]
@@ -186,7 +187,9 @@ def parse_import(raw: dict[str, Any]) -> AlarmoImportPlan | None:
                 title=user.get("name", "Imported user"),
                 data={
                     CONF_NAME: user.get("name", "Imported user"),
-                    CONF_CODE: user.get("code", ""),  # already bcrypt+base64 - same format
+                    CONF_CODE: user.get(
+                        "code", ""
+                    ),  # already bcrypt+base64 - same format
                     CONF_CAN_ARM: bool(user.get("can_arm", True)),
                     CONF_CAN_DISARM: bool(user.get("can_disarm", True)),
                     CONF_IS_OVERRIDE_CODE: bool(user.get("is_override_code")),

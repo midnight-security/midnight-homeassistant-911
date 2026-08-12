@@ -11,28 +11,28 @@ is the only way an import can carry forward a *working* code at all.
 The base AlarmControlPanelEntity provides no code-correctness checking for
 any action (arm or disarm) - this module is the entirety of that logic.
 """
+
 from __future__ import annotations
 
 import base64
-from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, NamedTuple
+from concurrent.futures import ThreadPoolExecutor
 
 import bcrypt
-
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from .const import (
-    CONF_AREA_LIMIT,
-    CONF_CAN_ARM,
-    CONF_CAN_DISARM,
-    CONF_CODE,
-    CONF_ENABLED,
-    CONF_IS_OVERRIDE_CODE,
-    CONF_NAME,
     DOMAIN,
+    CONF_CODE,
+    CONF_NAME,
+    CONF_CAN_ARM,
+    CONF_ENABLED,
+    CONF_AREA_LIMIT,
+    CONF_CAN_DISARM,
     SUBENTRY_TYPE_USER,
+    CONF_IS_OVERRIDE_CODE,
 )
 
 _BCRYPT_ROUNDS = 10
@@ -172,7 +172,9 @@ async def async_validate_code(
     if not _enabled_users(entry):
         return None
 
-    candidates = _eligible_users(entry, area_subentry_id=area_subentry_id, action=action)
+    candidates = _eligible_users(
+        entry, area_subentry_id=area_subentry_id, action=action
+    )
     matched = (
         await hass.async_add_executor_job(_find_match_sync, code or "", candidates)
         if candidates

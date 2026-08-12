@@ -1,9 +1,10 @@
 """Constants for Midnight Alerts integration."""
+
 from typing import Final
 
 from homeassistant.components.alarm_control_panel import (
-    AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
+    AlarmControlPanelEntityFeature,
 )
 
 DOMAIN = "midnight_alerts"

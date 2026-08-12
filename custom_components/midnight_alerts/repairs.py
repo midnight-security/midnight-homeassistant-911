@@ -18,16 +18,17 @@ sitting unreachable). Reusing reauth's already-working surfacing, even for
 an entry that never had a key at all, gets the user to the same
 API-key-only form either way.
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import data_entry_flow
-from homeassistant.components.repairs import RepairsFlow
-from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
+from homeassistant.components.repairs import RepairsFlow
 
 from . import NO_API_KEY_ISSUE_ID
 from .const import DOMAIN
@@ -121,7 +122,9 @@ class NoApiKeyRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         """Confirm, then start the same reauth flow used for a rejected key."""
         if user_input is not None:
-            reason = _async_start_reauth_and_get_reason(self.hass, self.data["entry_id"])
+            reason = _async_start_reauth_and_get_reason(
+                self.hass, self.data["entry_id"]
+            )
             return self.async_abort(reason=reason)
         return self.async_show_form(step_id="confirm", data_schema=vol.Schema({}))
 

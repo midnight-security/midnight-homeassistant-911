@@ -9,15 +9,16 @@ can actually see into, so a user's `code` (bcrypt-hashed, but still a real,
 checkable credential - not a one-way digest we'd be comfortable publishing)
 gets caught the same as the API key.
 """
+
 from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
+from homeassistant.components.diagnostics import async_redact_data
 
 from . import MidnightAlertsConfigEntry, sensors
-from .const import CONF_API_KEY, CONF_CODE, SUBENTRY_TYPE_AREA
+from .const import CONF_CODE, CONF_API_KEY, SUBENTRY_TYPE_AREA
 
 TO_REDACT = {CONF_API_KEY, CONF_CODE}
 
@@ -29,7 +30,10 @@ async def async_get_config_entry_diagnostics(
     subentries = [subentry.as_dict() for subentry in entry.subentries.values()]
 
     sensor_entries = [
-        {"entity_id": entity_id, "options": sensors.async_get_sensor_options(hass, entity_id)}
+        {
+            "entity_id": entity_id,
+            "options": sensors.async_get_sensor_options(hass, entity_id),
+        }
         for entity_id in _all_configured_sensors(entry, hass)
     ]
 

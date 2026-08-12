@@ -1,14 +1,15 @@
 """Button platform for Midnight Alerts."""
+
 import logging
 
-from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.components.button import ButtonEntity
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MidnightAlertsConfigEntry
-from .api import MidnightAlertsApiClient, MidnightAlertsApiError
+from .api import MidnightAlertsApiError, MidnightAlertsApiClient
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class MidnightAlertButton(ButtonEntity):
     _attr_icon = "mdi:alert"
 
     def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient) -> None:
+        """Bind this button entity to a config entry and API client."""
         self._client = client
         self._attr_unique_id = f"{entry.entry_id}_trigger_alert"
         self._attr_device_info = DeviceInfo(

@@ -1,69 +1,77 @@
 """Config flow for Midnight Alerts."""
+
 from __future__ import annotations
 
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
+from homeassistant.helpers import selector
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigSubentry,
     ConfigSubentryFlow,
     SubentryFlowResult,
 )
-from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import alarmo_import, pin, sensors
-from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
+from . import pin, sensors, alarmo_import
+from .api import (
+    MidnightAlertsApiError,
+    MidnightAlertsApiClient,
+    MidnightAlertsAuthError,
+)
 from .const import (
-    ARM_MODES,
-    CONF_AREA_LIMIT,
-    CONF_API_KEY,
-    CONF_ALWAYS_ON,
-    CONF_ARM_ON_CLOSE,
-    CONF_CAN_ARM,
-    CONF_CAN_DISARM,
-    CONF_CODE,
-    CONF_DECAY_PER_MINUTE,
-    CONF_DELAY_ON,
-    CONF_ENABLE_CRASH_REPORTING,
-    CONF_ENABLED,
-    CONF_ENTITIES,
-    CONF_ENTRY_TIME,
-    CONF_EVENT_COUNT,
-    CONF_EXIT_TIME,
-    CONF_GROUP_MODE,
-    CONF_IS_OVERRIDE_CODE,
-    CONF_MODES,
-    CONF_NAME,
-    CONF_SENSOR_ENTRY_DELAY,
-    CONF_THRESHOLD,
-    CONF_TIMEOUT,
-    CONF_TRIGGER_TIME,
-    CONF_WEIGHTS,
-    DEFAULT_DECAY_PER_MINUTE,
-    DEFAULT_ENTRY_TIME,
-    DEFAULT_EXIT_TIME,
-    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
-    DEFAULT_SENSOR_GROUP_TIMEOUT,
-    DEFAULT_THRESHOLD,
-    DEFAULT_TRIGGER_TIME,
-    DEFAULT_WEIGHT,
     DOMAIN,
+    ARM_MODES,
+    CONF_CODE,
+    CONF_NAME,
+    CONF_MODES,
+    CONF_API_KEY,
+    CONF_CAN_ARM,
+    CONF_ENABLED,
+    CONF_TIMEOUT,
+    CONF_WEIGHTS,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_EXIT_TIME,
+    CONF_THRESHOLD,
+    DEFAULT_WEIGHT,
+    CONF_AREA_LIMIT,
+    CONF_CAN_DISARM,
+    CONF_ENTRY_TIME,
+    CONF_GROUP_MODE,
+    CONF_EVENT_COUNT,
+    CONF_ARM_ON_CLOSE,
+    CONF_TRIGGER_TIME,
+    DEFAULT_EXIT_TIME,
+    DEFAULT_THRESHOLD,
     MODE_COUNT_WINDOW,
-    MODE_WEIGHTED_DECAY,
-    SUBENTRY_TYPE_ALARMO_IMPORT,
+    DEFAULT_ENTRY_TIME,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    MODE_WEIGHTED_DECAY,
+    DEFAULT_TRIGGER_TIME,
+    CONF_DECAY_PER_MINUTE,
+    CONF_IS_OVERRIDE_CODE,
+    CONF_SENSOR_ENTRY_DELAY,
+    DEFAULT_DECAY_PER_MINUTE,
+    SUBENTRY_TYPE_SENSOR_GROUP,
+    CONF_ENABLE_CRASH_REPORTING,
+    SUBENTRY_TYPE_ALARMO_IMPORT,
+    DEFAULT_SENSOR_GROUP_TIMEOUT,
+    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
 )
 
-DATA_SCHEMA = vol.Schema({
-    vol.Optional(CONF_API_KEY, default=""): str,
-    vol.Required(CONF_ENABLE_CRASH_REPORTING, default=False): bool,
-})
+DATA_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_API_KEY, default=""): str,
+        vol.Required(CONF_ENABLE_CRASH_REPORTING, default=False): bool,
+    }
+)
 
 # Reauth exists to fix a rejected key specifically - crash reporting isn't
 # part of that. It's asked once at initial setup, and editable afterward in
@@ -110,7 +118,9 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not api_key:
                 return await self._async_finish(user_input, enable_crash_reporting)
 
-            client = MidnightAlertsApiClient(api_key, async_get_clientsession(self.hass))
+            client = MidnightAlertsApiClient(
+                api_key, async_get_clientsession(self.hass)
+            )
             try:
                 result = await client.async_validate(
                     latitude=self.hass.config.latitude,
@@ -251,11 +261,10 @@ _MODE_SELECTOR = selector.SelectSelector(
 AREA_CREATE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): str,
-        vol.Required(
-            "enabled_modes", default=_DEFAULT_ENABLED_MODES
-        ): _MODE_SELECTOR,
+        vol.Required("enabled_modes", default=_DEFAULT_ENABLED_MODES): _MODE_SELECTOR,
     }
 )
+
 
 def _modes_data(
     enabled_modes: list[str], mode_timers: dict[str, dict[str, int]]
@@ -514,9 +523,7 @@ class AreaSubentryFlowHandler(ConfigSubentryFlow):
             step_id="manage_sensors",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        "sensors", default=current
-                    ): selector.EntitySelector(
+                    vol.Required("sensors", default=current): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="binary_sensor", multiple=True
                         )
@@ -618,9 +625,9 @@ SENSOR_GROUP_SCHEMA = vol.Schema(
         vol.Required(CONF_ENTITIES): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
         ),
-        vol.Required(
-            CONF_TIMEOUT, default=DEFAULT_SENSOR_GROUP_TIMEOUT
-        ): vol.Coerce(int),
+        vol.Required(CONF_TIMEOUT, default=DEFAULT_SENSOR_GROUP_TIMEOUT): vol.Coerce(
+            int
+        ),
         vol.Required(
             CONF_EVENT_COUNT, default=DEFAULT_SENSOR_GROUP_EVENT_COUNT
         ): vol.Coerce(int),
@@ -680,17 +687,13 @@ class SensorGroupSubentryFlowHandler(ConfigSubentryFlow):
             if user_input.get(CONF_GROUP_MODE) == MODE_WEIGHTED_DECAY:
                 self._pending_data = user_input
                 return await self.async_step_weights()
-            return self.async_create_entry(
-                title=user_input[CONF_NAME], data=user_input
-            )
-        return self.async_show_form(
-            step_id="user", data_schema=SENSOR_GROUP_SCHEMA
-        )
+            return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
+        return self.async_show_form(step_id="user", data_schema=SENSOR_GROUP_SCHEMA)
 
     async def async_step_weights(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Second step for a weighted_decay group: per-member weight + decay/threshold."""
+        """Second step of a weighted_decay group: per-entity weight and decay."""
         entities = self._pending_data[CONF_ENTITIES]
         if user_input is not None:
             data = _weighted_group_data(self._pending_data, user_input)

@@ -10,10 +10,11 @@ timestamp against the current time. `alarm_control_panel.py` owns all the
 config) - this module only computes what should be displayed right now,
 and how the FSM should look afterward.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from dataclasses import replace, dataclass
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 
@@ -50,8 +51,10 @@ def display_state(
     which has the same side effect for the same reason (nothing else polls
     this entity to notice the deadline has passed).
     """
-    if fsm.settled_state in ARM_MODES and fsm.arming_until and (
-        now < fsm.arming_until or fsm.held_open
+    if (
+        fsm.settled_state in ARM_MODES
+        and fsm.arming_until
+        and (now < fsm.arming_until or fsm.held_open)
     ):
         return AlarmControlPanelState.ARMING, fsm
 
@@ -136,7 +139,7 @@ def start_trigger(
     trigger_time: int,
     disarm_after_trigger: bool,
 ) -> AreaFsm:
-    """A sensor tripped (or alarm_trigger was called) - start the PENDING/TRIGGERED window."""
+    """Sensor tripped (or alarm_trigger called) - start the PENDING/TRIGGERED window."""
     previous = (
         fsm.previous_state
         if fsm.settled_state == AlarmControlPanelState.TRIGGERED

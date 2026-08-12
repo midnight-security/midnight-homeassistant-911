@@ -1,19 +1,24 @@
 """Midnight Alerts integration."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr
+from homeassistant.loader import async_get_integration
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr
+from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType
-from homeassistant.loader import async_get_integration
 
-from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
-from .const import CONF_ENABLE_CRASH_REPORTING, DOMAIN, CONF_API_KEY
+from .api import (
+    MidnightAlertsApiError,
+    MidnightAlertsApiClient,
+    MidnightAlertsAuthError,
+)
+from .const import DOMAIN, CONF_API_KEY, CONF_ENABLE_CRASH_REPORTING
 
 LOCATION_MISMATCH_ISSUE_ID = "location_mismatch"
 NO_API_KEY_ISSUE_ID = "no_api_key"
@@ -31,7 +36,9 @@ class MidnightAlertsData:
 type MidnightAlertsConfigEntry = ConfigEntry[MidnightAlertsData]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntry) -> bool:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: MidnightAlertsConfigEntry
+) -> bool:
     """Set up Midnight Alerts."""
     integration = await async_get_integration(hass, DOMAIN)
     client = MidnightAlertsApiClient(
@@ -59,7 +66,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
         except MidnightAlertsAuthError as err:
             raise ConfigEntryAuthFailed("Invalid Midnight Alerts API key") from err
         except MidnightAlertsApiError as err:
-            raise ConfigEntryNotReady(f"Error connecting to Midnight Alerts: {err}") from err
+            raise ConfigEntryNotReady(
+                f"Error connecting to Midnight Alerts: {err}"
+            ) from err
 
         # Non-blocking: a location drift after initial setup (e.g. hass.config's
         # own location changed) shouldn't take the whole integration down - it's
@@ -114,6 +123,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntr
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: MidnightAlertsConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: MidnightAlertsConfigEntry
+) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

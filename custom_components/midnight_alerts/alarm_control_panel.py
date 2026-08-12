@@ -6,75 +6,76 @@ entity also subscribes to real sensor entities, since automatic
 entry/exit-delay and sensor-driven triggering is the actual value this adds
 over the stock `manual` platform.
 """
+
 from __future__ import annotations
 
 import logging
+from typing import Any, Self, Literal
 from datetime import datetime
 from functools import partial
-from typing import Any, Literal, Self
 
-from homeassistant.components.alarm_control_panel import (
-    AlarmControlPanelEntity,
-    AlarmControlPanelEntityFeature,
-    AlarmControlPanelState,
-    CodeFormat,
-)
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import (
     CALLBACK_TYPE,
     Event,
-    EventStateChangedData,
     HomeAssistant,
+    EventStateChangedData,
     callback,
 )
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_time,
     async_track_state_change_event,
 )
-from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
-from homeassistant.util import dt as dt_util
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.helpers.restore_state import RestoreEntity, ExtraStoredData
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.alarm_control_panel import (
+    CodeFormat,
+    AlarmControlPanelState,
+    AlarmControlPanelEntity,
+    AlarmControlPanelEntityFeature,
+)
 
 from . import pin, sensors
 from . import alarm_state as alarm_state_lib
-from .sensor_groups import GroupScore, GroupTally, is_confirmed, is_score_confirmed
 from .const import (
-    CONF_ALWAYS_ON,
-    CONF_ARM_ON_CLOSE,
-    CONF_DECAY_PER_MINUTE,
-    CONF_DELAY_ON,
-    CONF_ENABLED,
-    CONF_ENTITIES,
-    CONF_ENTRY_TIME,
-    CONF_EVENT_COUNT,
-    CONF_EXIT_TIME,
-    CONF_GROUP_MODE,
-    CONF_MODES,
-    CONF_SENSOR_ENTRY_DELAY,
-    CONF_THRESHOLD,
-    CONF_TIMEOUT,
-    CONF_TRIGGER_TIME,
-    CONF_USE_ENTRY_DELAY,
-    CONF_USE_EXIT_DELAY,
-    CONF_WEIGHTS,
-    DEFAULT_DECAY_PER_MINUTE,
-    DEFAULT_ENTRY_TIME,
-    DEFAULT_EXIT_TIME,
-    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
-    DEFAULT_SENSOR_GROUP_TIMEOUT,
-    DEFAULT_THRESHOLD,
-    DEFAULT_TRIGGER_TIME,
-    DEFAULT_WEIGHT,
     DOMAIN,
-    EVENT_ARM_FAILED,
-    MODE_COUNT_WINDOW,
+    CONF_MODES,
+    CONF_ENABLED,
+    CONF_TIMEOUT,
+    CONF_WEIGHTS,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_EXIT_TIME,
+    CONF_THRESHOLD,
+    DEFAULT_WEIGHT,
+    CONF_ENTRY_TIME,
+    CONF_GROUP_MODE,
     MODE_TO_FEATURE,
-    MODE_WEIGHTED_DECAY,
+    CONF_EVENT_COUNT,
+    EVENT_ARM_FAILED,
+    CONF_ARM_ON_CLOSE,
+    CONF_TRIGGER_TIME,
+    DEFAULT_EXIT_TIME,
+    DEFAULT_THRESHOLD,
+    MODE_COUNT_WINDOW,
+    DEFAULT_ENTRY_TIME,
     SUBENTRY_TYPE_AREA,
+    CONF_USE_EXIT_DELAY,
+    MODE_WEIGHTED_DECAY,
+    CONF_USE_ENTRY_DELAY,
+    DEFAULT_TRIGGER_TIME,
+    CONF_DECAY_PER_MINUTE,
+    CONF_SENSOR_ENTRY_DELAY,
+    DEFAULT_DECAY_PER_MINUTE,
     SUBENTRY_TYPE_SENSOR_GROUP,
+    DEFAULT_SENSOR_GROUP_TIMEOUT,
+    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
 )
+from .sensor_groups import GroupScore, GroupTally, is_confirmed, is_score_confirmed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -191,7 +192,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 features |= MODE_TO_FEATURE[mode]
         self._attr_supported_features = features
 
-    def async_set_master(self, master: "MidnightAlarmMaster") -> None:
+    def async_set_master(self, master: MidnightAlarmMaster) -> None:
         """Link this area to its entry's master entity, set once at setup."""
         self._master = master
 
@@ -391,9 +392,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_arm_custom_bypass(self, code: str | None = None) -> None:
         """Arm custom bypass."""
-        await self._async_start_arming(
-            AlarmControlPanelState.ARMED_CUSTOM_BYPASS, code
-        )
+        await self._async_start_arming(AlarmControlPanelState.ARMED_CUSTOM_BYPASS, code)
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Disarm - always immediate, no delay."""
@@ -543,7 +542,10 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
         confirmed = False
         for group in groups:
-            if group.data.get(CONF_GROUP_MODE, MODE_COUNT_WINDOW) == MODE_WEIGHTED_DECAY:
+            if (
+                group.data.get(CONF_GROUP_MODE, MODE_COUNT_WINDOW)
+                == MODE_WEIGHTED_DECAY
+            ):
                 if self._group_score_confirmed(group, entity_id, now):
                     confirmed = True
                 continue
@@ -579,7 +581,9 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             score, threshold=group.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
         )
 
-    def _async_process_open_sensor(self, entity_id: str, options: dict[str, Any]) -> None:
+    def _async_process_open_sensor(
+        self, entity_id: str, options: dict[str, Any]
+    ) -> None:
         display = self.alarm_state  # also runs any pending auto-revert derivation
 
         if options.get(CONF_ALWAYS_ON):

@@ -20,6 +20,7 @@ deploy" step in .github/workflows/release.yml, which fires right after
 semantic-release publishes a new version, using that exact same version
 string.
 """
+
 from __future__ import annotations
 
 import logging
@@ -63,9 +64,9 @@ def _get_scope(release: str | None) -> Scope:
     fine, since the running integration's version can't change without a
     Home Assistant restart anyway.
     """
-    global _scope
+    global _scope  # noqa: PLW0603
     if _scope is None:
-        import sentry_sdk
+        import sentry_sdk  # noqa: PLC0415
 
         client = sentry_sdk.Client(
             dsn=_DSN,
@@ -92,5 +93,5 @@ def report_exception(
         scope = _get_scope(release)
         scope.set_tag("operation", operation)
         scope.capture_exception(err)
-    except Exception:  # noqa: BLE001
+    except Exception:
         _LOGGER.debug("Failed to report exception to Sentry", exc_info=True)

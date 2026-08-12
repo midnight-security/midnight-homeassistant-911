@@ -1,4 +1,5 @@
 """API client for Midnight Alerts."""
+
 import logging
 from typing import Any
 
@@ -30,6 +31,7 @@ class MidnightAlertsApiClient:
         report_errors: bool = False,
         release: str | None = None,
     ) -> None:
+        """Create a client bound to a single API key and aiohttp session."""
         self._api_key = api_key
         self._session = session
         self._report_errors = report_errors
