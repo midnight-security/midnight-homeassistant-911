@@ -2,14 +2,14 @@
 
 [![License][license-shield]](LICENSE)
 [![GitHub Release][releases-shield]][releases]
-[![HA and HACS Validate](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/ha_and_hacs_validate.yml/badge.svg)](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/ha_and_hacs_validate.yml)
+[![HA and HACS Validate](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/validate.yml/badge.svg)](https://github.com/midnight-security/midnight-homeassistant-911/actions/workflows/validate.yml)
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
 
-The Midnight 911 integration for Home Assistant allows anyone to add professional security monitoring to their home.
+The Midnight 911 integration for Home Assistant allows you to add professional security monitoring to your home.
 
 Users can add either a button or automation that triggers an alert to a US-based security monitoring center. If validated or without response, they will contact your local 911 center on your behalf. So please use it carefully.
 
-HACS is required, currently.
+HACS is currently required.
 
 > **Note:** This integration is currently available in the United States only, with plans to expand to Canada.
 
@@ -19,9 +19,9 @@ HACS is required, currently.
 
 ## How it Works
 
-This integration works in partnership with RapidSOS and uses their service to validate 911 calls and reach the associated 911 center.
+This integration works in partnership with [RapidSOS](https://www.rapidsos.com) and uses their service to validate 911 calls and reach the associated 911 center.
 
-It's VERY IMPORTANT you keep the address on your midnight.security account updated properly — that's the address a real dispatch is sent to, not anything configured in Home Assistant. Setup checks that Home Assistant's own configured location is within 1000 feet of that address and will refuse to continue (or raise a Repair, if it drifts out of sync later) if they don't match.
+It's VERY IMPORTANT you keep the address on your [Midnight Account](https://app.midnight.security) updated properly — that's the address a real dispatch is sent to, not anything configured in Home Assistant. Setup checks that Home Assistant's own configured location is within 1000 feet of that address and will refuse to continue (or raise a Repair, if it drifts out of sync later) if they don't match.
 
 ---
 
@@ -31,17 +31,27 @@ It's VERY IMPORTANT you keep the address on your midnight.security account updat
 
 1. Open HACS in your Home Assistant instance ![App Screenshot](img/1.HACS.png)
 2. Click on the three dots menu and choose "Custom Repository" ![App Screenshot](img/2.HACS-Meatball.png)
-3. Enter the url for this repo in the dialog and click Add ![App Screenshot](img/3.HACS-CustomRepo.png)
+3. Enter `https://github.com/midnight-security/midnight-homeassistant-911` in the dialog and click Add ![App Screenshot](img/3.HACS-CustomRepo.png)
 4. Now hit cancel on the dialog, the integration should appear in "New" ![App Screenshot](img/4.HACS-New.png)
 5. Click "Download" under the three dot menu. ![App Screenshot](img/5.HACS-Download.png)
 6. The integration should now appear in "Pending Restart" ![App Screenshot](img/6.HACS-Pending.png)
 7. In Settings the restart button should be at the top. ![App Screenshot](img/7.Setting-Restart.png)
-8. After restarting the integration should be available if you search for it from the dashbaord. ![App Screenshot](img/8.Dash-verify.png)
+8. After restarting the integration should be available if you search for it from the dashboard. ![App Screenshot](img/8.Dash-verify.png)
 
 ### Manual
 
 1. Copy the `custom_components/midnight_alerts` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
+
+### Setup
+
+After installing and restarting:
+
+1. Go to **Settings → Devices & Services → Add Integration**
+2. Search for **Midnight 911 Integration**
+3. Enter your Midnight API key and complete the config flow
+
+For full setup details — API keys, the Trigger Alert button, Midnight Alarm, and automation examples — see [`docs/midnight_alerts.markdown`](docs/midnight_alerts.markdown).
 
 ---
 
@@ -49,7 +59,8 @@ It's VERY IMPORTANT you keep the address on your midnight.security account updat
 
 Home Assistant must have an active internet connection for the integration to work properly.
 
-NO GUARANTEE
+### NO GUARANTEE
+
 This integration is provided as-is without warranties of any kind. Home Assistant and Midnight both involve multiple service providers and potential points of failure, including (but not limited to) your internet service provider, 3rd party hosting services such as Amazon Web Services, and the Home Assistant software platform.
 
 Please read and understand the [Midnight Terms of Service](https://www.midnight.security/legal) and [Home Assistant Terms of Service](https://www.home-assistant.io/tos/) both of which include important limitations of liability and indemnification provisions.
