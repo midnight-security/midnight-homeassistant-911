@@ -1,44 +1,44 @@
 """Tests for the area/user config subentry flows."""
+
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.helpers import entity_registry as er
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.midnight_alerts import pin, sensors
 from custom_components.midnight_alerts.const import (
-    CONF_API_KEY,
-    CONF_ALWAYS_ON,
-    CONF_AREA_LIMIT,
-    CONF_ARM_ON_CLOSE,
+    DOMAIN,
     CONF_CODE,
-    CONF_DECAY_PER_MINUTE,
-    CONF_DELAY_ON,
-    CONF_ENTITIES,
-    CONF_EVENT_COUNT,
-    CONF_GROUP_MODE,
-    CONF_MODES,
     CONF_NAME,
-    CONF_SENSOR_ENTRY_DELAY,
-    CONF_THRESHOLD,
+    CONF_MODES,
+    CONF_API_KEY,
     CONF_TIMEOUT,
     CONF_WEIGHTS,
-    DOMAIN,
-    MODE_WEIGHTED_DECAY,
-    SUBENTRY_TYPE_ALARMO_IMPORT,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_THRESHOLD,
+    CONF_GROUP_MODE,
+    CONF_EVENT_COUNT,
+    CONF_ARM_ON_CLOSE,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    MODE_WEIGHTED_DECAY,
+    CONF_DECAY_PER_MINUTE,
+    CONF_SENSOR_ENTRY_DELAY,
+    SUBENTRY_TYPE_SENSOR_GROUP,
+    SUBENTRY_TYPE_ALARMO_IMPORT,
 )
 
-FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
-)
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 async def _entry(hass) -> MockConfigEntry:
@@ -64,6 +64,20 @@ async def test_add_area(hass):
         result["flow_id"],
         {CONF_NAME: "Home", "enabled_modes": ["armed_away", "armed_home"]},
     )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "timers"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "armed_away_exit_time": 60,
+            "armed_away_entry_time": 30,
+            "armed_away_trigger_time": 120,
+            "armed_home_exit_time": 0,
+            "armed_home_entry_time": 0,
+            "armed_home_trigger_time": 120,
+        },
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
     (subentry,) = [
@@ -71,7 +85,42 @@ async def test_add_area(hass):
     ]
     assert subentry.title == "Home"
     assert subentry.data[CONF_MODES]["armed_away"]["enabled"] is True
+    assert subentry.data[CONF_MODES]["armed_away"]["exit_time"] == 60
+    assert subentry.data[CONF_MODES]["armed_home"]["exit_time"] == 0
     assert subentry.data[CONF_MODES]["armed_night"]["enabled"] is False
+
+
+async def test_add_area_gives_each_mode_independent_timers(hass):
+    """The whole point of the two-step flow: modes don't share one timer set."""
+    entry = await _entry(hass)
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_AREA),
+        context={"source": "user"},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {CONF_NAME: "Home", "enabled_modes": ["armed_away", "armed_night"]},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "armed_away_exit_time": 60,
+            "armed_away_entry_time": 30,
+            "armed_away_trigger_time": 120,
+            "armed_night_exit_time": 0,
+            "armed_night_entry_time": 10,
+            "armed_night_trigger_time": 60,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    (subentry,) = [
+        s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
+    ]
+    assert subentry.data[CONF_MODES]["armed_away"]["exit_time"] == 60
+    assert subentry.data[CONF_MODES]["armed_night"]["exit_time"] == 0
+    assert subentry.data[CONF_MODES]["armed_night"]["entry_time"] == 10
 
 
 async def test_edit_area_timers(hass):
@@ -113,12 +162,24 @@ async def test_edit_area_timers(hass):
 
     result = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
+        {CONF_NAME: "Home", "enabled_modes": ["armed_away"]},
+    )
+    assert result["step_id"] == "reconfigure_timers"
+    # existing per-mode timers are pre-filled as suggested values
+    for marker in result["data_schema"].schema:
+        if str(marker) == "armed_away_exit_time":
+            assert marker.description == {"suggested_value": 60}
+        elif str(marker) == "armed_away_entry_time":
+            assert marker.description == {"suggested_value": 30}
+        elif str(marker) == "armed_away_trigger_time":
+            assert marker.description == {"suggested_value": 120}
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
         {
-            CONF_NAME: "Home",
-            "enabled_modes": ["armed_away"],
-            "exit_time": 45,
-            "entry_time": 15,
-            "trigger_time": 90,
+            "armed_away_exit_time": 45,
+            "armed_away_entry_time": 15,
+            "armed_away_trigger_time": 90,
         },
     )
     assert result["type"] is FlowResultType.ABORT
@@ -674,7 +735,9 @@ def _write_alarmo_storage(hass) -> None:
     (storage_dir / "alarmo.storage").write_text(FIXTURE_PATH.read_text())
 
 
-async def test_alarmo_import_flow_shows_preview_then_applies(hass, tmp_path, monkeypatch):
+async def test_alarmo_import_flow_shows_preview_then_applies(
+    hass, tmp_path, monkeypatch
+):
     # See test_alarmo_import.py's test_read_alarmo_storage_missing_file_returns_none
     # for why config_dir must be redirected before writing a real storage file.
     monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
@@ -742,7 +805,9 @@ async def test_alarmo_import_flow_version_mismatch_aborts(hass, tmp_path, monkey
     assert result["reason"] == "alarmo_version_mismatch"
 
 
-async def test_alarmo_import_flow_twice_reports_already_imported(hass, tmp_path, monkeypatch):
+async def test_alarmo_import_flow_twice_reports_already_imported(
+    hass, tmp_path, monkeypatch
+):
     monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     entry = await _entry(hass)
     _write_alarmo_storage(hass)

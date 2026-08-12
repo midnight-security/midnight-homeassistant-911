@@ -1,26 +1,28 @@
 """Tests for the Alarmo import parser and apply step."""
+
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.midnight_alerts import alarmo_import, pin, sensors
+from custom_components.midnight_alerts import pin, sensors, alarmo_import
 from custom_components.midnight_alerts.const import (
-    CONF_API_KEY,
-    CONF_AREA_LIMIT,
-    CONF_CODE,
-    CONF_EXIT_TIME,
-    CONF_MODES,
     DOMAIN,
+    CONF_CODE,
+    CONF_MODES,
+    CONF_API_KEY,
+    CONF_EXIT_TIME,
+    CONF_AREA_LIMIT,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    SUBENTRY_TYPE_SENSOR_GROUP,
 )
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "alarmo_storage_sample.json"
 
 
@@ -115,7 +117,9 @@ def test_parse_import_rejects_non_dict_data():
     assert alarmo_import.parse_import(raw) is None
 
 
-async def test_read_alarmo_storage_missing_file_returns_none(hass, tmp_path, monkeypatch):
+async def test_read_alarmo_storage_missing_file_returns_none(
+    hass, tmp_path, monkeypatch
+):
     # hass.config.path() otherwise resolves into a *shared*, non-isolated
     # directory inside the installed pytest_homeassistant_custom_component
     # package itself - not a per-test tmp dir - so tests that write a real
@@ -164,7 +168,9 @@ async def test_apply_import_creates_subentries_and_sensor_options(hass):
     entry = await _entry(hass)
     registry = er.async_get(hass)
     for name in ("front_door", "motion1", "motion2"):
-        registry.async_get_or_create("binary_sensor", "test", name, suggested_object_id=name)
+        registry.async_get_or_create(
+            "binary_sensor", "test", name, suggested_object_id=name
+        )
         hass.states.async_set(f"binary_sensor.{name}", "off")
     await hass.async_block_till_done()
 
@@ -176,7 +182,9 @@ async def test_apply_import_creates_subentries_and_sensor_options(hass):
     assert summary.areas_imported == 1
     assert summary.users_imported == 1
     assert summary.sensor_groups_imported == 1
-    assert summary.sensors_imported == 3  # disabled_sensor was already excluded by parse_import
+    assert (
+        summary.sensors_imported == 3
+    )  # disabled_sensor was already excluded by parse_import
     assert summary.sensors_skipped == []
     assert summary.automations_skipped == 2
     assert summary.already_imported is False
@@ -185,9 +193,12 @@ async def test_apply_import_creates_subentries_and_sensor_options(hass):
         s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_AREA
     ]
     assert len(area_subentries) == 1
-    assert sensors.async_get_sensor_options(hass, "binary_sensor.front_door")[
-        "arm_on_close"
-    ] is True
+    assert (
+        sensors.async_get_sensor_options(hass, "binary_sensor.front_door")[
+            "arm_on_close"
+        ]
+        is True
+    )
 
 
 async def test_apply_import_reports_missing_entities(hass):
@@ -212,7 +223,9 @@ async def test_apply_import_twice_is_a_safe_no_op(hass):
     entry = await _entry(hass)
     registry = er.async_get(hass)
     for name in ("front_door", "motion1", "motion2"):
-        registry.async_get_or_create("binary_sensor", "test", name, suggested_object_id=name)
+        registry.async_get_or_create(
+            "binary_sensor", "test", name, suggested_object_id=name
+        )
     await hass.async_block_till_done()
 
     plan = alarmo_import.parse_import(_load_fixture())

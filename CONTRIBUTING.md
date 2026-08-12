@@ -4,12 +4,13 @@ Thank you for helping improve the Midnight 911 Home Assistant integration.
 
 ## Development setup
 
-1. Install dependencies into a local virtualenv. `uv.lock` pins an exact
-   Home Assistant core version, so this gives you a matching `hass` to run
-   locally:
+1. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/), then
+   sync the same deps CI uses (Python 3.14):
    ```bash
-   uv sync --group dev
+   uv sync
    ```
+   `pytest-homeassistant-custom-component` pulls in a matching Home Assistant
+   core, so the venv also gives you a local `hass` binary at `.venv/bin/hass`.
 2. Point a throwaway Home Assistant config directory at this checkout by
    symlinking the integration in:
    ```bash
@@ -30,14 +31,14 @@ Thank you for helping improve the Midnight 911 Home Assistant integration.
      server_port: 8124
    ```
 4. Open the printed URL, complete onboarding, then add the integration via
-   **Settings → Devices & services → Add Integration → "Midnight 911"**.
+   **Settings → Devices & services → Add Integration → "Midnight 911 Integration"**.
 
 Logs land in `.ha_dev_config/home-assistant.log`.
 
 ## Running tests
 
 ```bash
-uv run pytest
+uv run pytest tests/ -q
 ```
 
 ## Branch workflow

@@ -11,28 +11,28 @@ is the only way an import can carry forward a *working* code at all.
 The base AlarmControlPanelEntity provides no code-correctness checking for
 any action (arm or disarm) - this module is the entirety of that logic.
 """
+
 from __future__ import annotations
 
 import base64
-from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, NamedTuple
+from concurrent.futures import ThreadPoolExecutor
 
 import bcrypt
-
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from .const import (
-    CONF_AREA_LIMIT,
-    CONF_CAN_ARM,
-    CONF_CAN_DISARM,
-    CONF_CODE,
-    CONF_ENABLED,
-    CONF_IS_OVERRIDE_CODE,
-    CONF_NAME,
     DOMAIN,
+    CONF_CODE,
+    CONF_NAME,
+    CONF_CAN_ARM,
+    CONF_ENABLED,
+    CONF_AREA_LIMIT,
+    CONF_CAN_DISARM,
     SUBENTRY_TYPE_USER,
+    CONF_IS_OVERRIDE_CODE,
 )
 
 _BCRYPT_ROUNDS = 10
@@ -89,9 +89,18 @@ def _enabled_users(entry: ConfigEntry) -> list[ConfigSubentry]:
 
 
 def _eligible_users(
-    entry: ConfigEntry, *, area_subentry_id: str, action: Literal["arm", "disarm"]
+    entry: ConfigEntry,
+    *,
+    area_subentry_id: str | None,
+    action: Literal["arm", "disarm"],
 ) -> list[ConfigSubentry]:
-    """Enabled users additionally permitted for this specific action/area."""
+    """Enabled users additionally permitted for this specific action/area.
+
+    `area_subentry_id=None` is the master (all-areas) action: only a user
+    with no area_limit at all - i.e. already permitted everywhere - is
+    eligible. A user restricted to specific areas is deliberately never
+    eligible for master, regardless of which areas are on their list.
+    """
     can_field = CONF_CAN_ARM if action == "arm" else CONF_CAN_DISARM
     return [
         subentry
@@ -99,7 +108,10 @@ def _eligible_users(
         if subentry.data.get(can_field, True)
         and (
             not subentry.data.get(CONF_AREA_LIMIT)
-            or area_subentry_id in subentry.data[CONF_AREA_LIMIT]
+            or (
+                area_subentry_id is not None
+                and area_subentry_id in subentry.data[CONF_AREA_LIMIT]
+            )
         )
     ]
 
@@ -142,10 +154,13 @@ async def async_validate_code(
     entry: ConfigEntry,
     *,
     code: str | None,
-    area_subentry_id: str,
+    area_subentry_id: str | None,
     action: Literal["arm", "disarm"],
 ) -> CodeMatch | None:
     """Resolve `code` to a permitted user for this area, or raise.
+
+    `area_subentry_id=None` validates for the master (all-areas) entity
+    instead of one specific area - see `_eligible_users`.
 
     Returns None only when no enabled users exist at all (no PIN required).
     If any enabled user exists but none of them are eligible for this
@@ -157,7 +172,9 @@ async def async_validate_code(
     if not _enabled_users(entry):
         return None
 
-    candidates = _eligible_users(entry, area_subentry_id=area_subentry_id, action=action)
+    candidates = _eligible_users(
+        entry, area_subentry_id=area_subentry_id, action=action
+    )
     matched = (
         await hass.async_add_executor_job(_find_match_sync, code or "", candidates)
         if candidates

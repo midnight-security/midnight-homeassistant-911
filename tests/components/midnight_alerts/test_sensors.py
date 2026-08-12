@@ -1,4 +1,5 @@
 """Tests for sensors.py's entity-registry-options helpers."""
+
 import pytest
 from homeassistant.helpers import entity_registry as er
 
@@ -32,9 +33,7 @@ async def test_set_and_get_sensor_options(hass, registered_sensor):
 
 
 async def test_set_sensor_options_merges_fields(hass, registered_sensor):
-    sensors.async_set_sensor_options(
-        hass, registered_sensor, area_subentry_id="area1"
-    )
+    sensors.async_set_sensor_options(hass, registered_sensor, area_subentry_id="area1")
     sensors.async_set_sensor_options(hass, registered_sensor, always_on=True)
     options = sensors.async_get_sensor_options(hass, registered_sensor)
     assert options == {"area_subentry_id": "area1", "always_on": True}
@@ -48,9 +47,7 @@ async def test_set_sensor_options_missing_entity_raises(hass):
 
 
 async def test_clear_sensor_options(hass, registered_sensor):
-    sensors.async_set_sensor_options(
-        hass, registered_sensor, area_subentry_id="area1"
-    )
+    sensors.async_set_sensor_options(hass, registered_sensor, area_subentry_id="area1")
     sensors.async_clear_sensor_options(hass, registered_sensor)
     assert sensors.async_get_sensor_options(hass, registered_sensor) is None
 

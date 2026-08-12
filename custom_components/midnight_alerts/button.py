@@ -1,14 +1,16 @@
 """Button platform for Midnight Alerts."""
-import logging
 
-from homeassistant.components.button import ButtonEntity
+import logging
+from typing import override
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.components.button import ButtonEntity
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MidnightAlertsConfigEntry
-from .api import MidnightAlertsApiClient, MidnightAlertsApiError
+from .api import MidnightAlertsApiError, MidnightAlertsApiClient
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,21 +44,32 @@ class MidnightAlertButton(ButtonEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "trigger_alert"
-    _attr_icon = "mdi:alert"
 
     def __init__(self, entry: ConfigEntry, client: MidnightAlertsApiClient) -> None:
+        """Bind this button entity to a config entry and API client."""
         self._client = client
         self._attr_unique_id = f"{entry.entry_id}_trigger_alert"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
+            # Matches __init__.py's own device name - deliberately not
+            # "Midnight 911 Integration" (see the comment there).
             name="Midnight 911",
             manufacturer="Midnight Security",
             model="Alert System",
             entry_type=DeviceEntryType.SERVICE,
         )
 
+    @override
     async def async_press(self) -> None:
         """Trigger the alert when button is pressed."""
+        if not self._client.is_configured:
+            _LOGGER.error(
+                "Cannot send alert: no Midnight Alerts API key configured yet - "
+                "add one from Settings > Devices & services > Midnight 911 "
+                "Integration > Reconfigure"
+            )
+            return
+
         payload = {
             "lat": self.hass.config.latitude,
             "lng": self.hass.config.longitude,

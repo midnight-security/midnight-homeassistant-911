@@ -10,10 +10,11 @@ timestamp against the current time. `alarm_control_panel.py` owns all the
 config) - this module only computes what should be displayed right now,
 and how the FSM should look afterward.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from dataclasses import replace, dataclass
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 
@@ -50,8 +51,10 @@ def display_state(
     which has the same side effect for the same reason (nothing else polls
     this entity to notice the deadline has passed).
     """
-    if fsm.settled_state in ARM_MODES and fsm.arming_until and (
-        now < fsm.arming_until or fsm.held_open
+    if (
+        fsm.settled_state in ARM_MODES
+        and fsm.arming_until
+        and (now < fsm.arming_until or fsm.held_open)
     ):
         return AlarmControlPanelState.ARMING, fsm
 
@@ -136,7 +139,7 @@ def start_trigger(
     trigger_time: int,
     disarm_after_trigger: bool,
 ) -> AreaFsm:
-    """A sensor tripped (or alarm_trigger was called) - start the PENDING/TRIGGERED window."""
+    """Sensor tripped (or alarm_trigger called) - start the PENDING/TRIGGERED window."""
     previous = (
         fsm.previous_state
         if fsm.settled_state == AlarmControlPanelState.TRIGGERED
@@ -173,3 +176,30 @@ def shorten_pending(fsm: AreaFsm, *, now: datetime, entry_delay: int) -> AreaFsm
 def disarm() -> AreaFsm:
     """Disarm always resets to a clean, fully-settled DISARMED FSM."""
     return AreaFsm()
+
+
+def aggregate_state(
+    states: list[AlarmControlPanelState],
+) -> AlarmControlPanelState:
+    """Combine every area's current state into a single all-areas reading.
+
+    TRIGGERED beats PENDING beats ARMING beats a single shared armed mode -
+    mirrors how a real panel's master zone reports the most urgent thing
+    happening anywhere in the home. If every area agrees (including all
+    DISARMED), that shared state wins. Otherwise - some areas armed, some
+    not, or armed in different modes - there's no single mode that would
+    honestly describe the whole home, so this falls back to DISARMED rather
+    than claim protection that isn't actually uniform everywhere.
+    """
+    if not states:
+        return AlarmControlPanelState.DISARMED
+    for urgent in (
+        AlarmControlPanelState.TRIGGERED,
+        AlarmControlPanelState.PENDING,
+        AlarmControlPanelState.ARMING,
+    ):
+        if urgent in states:
+            return urgent
+    if all(state == states[0] for state in states):
+        return states[0]
+    return AlarmControlPanelState.DISARMED

@@ -6,75 +6,76 @@ entity also subscribes to real sensor entities, since automatic
 entry/exit-delay and sensor-driven triggering is the actual value this adds
 over the stock `manual` platform.
 """
+
 from __future__ import annotations
 
 import logging
+from typing import Any, Self, Literal, override
 from datetime import datetime
 from functools import partial
-from typing import Any, Self
 
-from homeassistant.components.alarm_control_panel import (
-    AlarmControlPanelEntity,
-    AlarmControlPanelEntityFeature,
-    AlarmControlPanelState,
-    CodeFormat,
-)
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import (
     CALLBACK_TYPE,
     Event,
-    EventStateChangedData,
     HomeAssistant,
+    EventStateChangedData,
     callback,
 )
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_time,
     async_track_state_change_event,
 )
-from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
-from homeassistant.util import dt as dt_util
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.helpers.restore_state import RestoreEntity, ExtraStoredData
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.components.alarm_control_panel import (
+    CodeFormat,
+    AlarmControlPanelState,
+    AlarmControlPanelEntity,
+    AlarmControlPanelEntityFeature,
+)
 
 from . import pin, sensors
 from . import alarm_state as alarm_state_lib
-from .sensor_groups import GroupScore, GroupTally, is_confirmed, is_score_confirmed
 from .const import (
-    CONF_ALWAYS_ON,
-    CONF_ARM_ON_CLOSE,
-    CONF_DECAY_PER_MINUTE,
-    CONF_DELAY_ON,
-    CONF_ENABLED,
-    CONF_ENTITIES,
-    CONF_ENTRY_TIME,
-    CONF_EVENT_COUNT,
-    CONF_EXIT_TIME,
-    CONF_GROUP_MODE,
-    CONF_MODES,
-    CONF_SENSOR_ENTRY_DELAY,
-    CONF_THRESHOLD,
-    CONF_TIMEOUT,
-    CONF_TRIGGER_TIME,
-    CONF_USE_ENTRY_DELAY,
-    CONF_USE_EXIT_DELAY,
-    CONF_WEIGHTS,
-    DEFAULT_DECAY_PER_MINUTE,
-    DEFAULT_ENTRY_TIME,
-    DEFAULT_EXIT_TIME,
-    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
-    DEFAULT_SENSOR_GROUP_TIMEOUT,
-    DEFAULT_THRESHOLD,
-    DEFAULT_TRIGGER_TIME,
-    DEFAULT_WEIGHT,
     DOMAIN,
-    EVENT_ARM_FAILED,
-    MODE_COUNT_WINDOW,
+    CONF_MODES,
+    CONF_ENABLED,
+    CONF_TIMEOUT,
+    CONF_WEIGHTS,
+    CONF_DELAY_ON,
+    CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_EXIT_TIME,
+    CONF_THRESHOLD,
+    DEFAULT_WEIGHT,
+    CONF_ENTRY_TIME,
+    CONF_GROUP_MODE,
     MODE_TO_FEATURE,
-    MODE_WEIGHTED_DECAY,
+    CONF_EVENT_COUNT,
+    EVENT_ARM_FAILED,
+    CONF_ARM_ON_CLOSE,
+    CONF_TRIGGER_TIME,
+    DEFAULT_EXIT_TIME,
+    DEFAULT_THRESHOLD,
+    MODE_COUNT_WINDOW,
+    DEFAULT_ENTRY_TIME,
     SUBENTRY_TYPE_AREA,
+    CONF_USE_EXIT_DELAY,
+    MODE_WEIGHTED_DECAY,
+    CONF_USE_ENTRY_DELAY,
+    DEFAULT_TRIGGER_TIME,
+    CONF_DECAY_PER_MINUTE,
+    CONF_SENSOR_ENTRY_DELAY,
+    DEFAULT_DECAY_PER_MINUTE,
     SUBENTRY_TYPE_SENSOR_GROUP,
+    DEFAULT_SENSOR_GROUP_TIMEOUT,
+    DEFAULT_SENSOR_GROUP_EVENT_COUNT,
 )
+from .sensor_groups import GroupScore, GroupTally, is_confirmed, is_score_confirmed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,16 +85,25 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up one alarm_control_panel entity per configured area."""
+    """Set up one alarm_control_panel entity per configured area, plus a master."""
+    areas: list[MidnightAlarmArea] = []
     for subentry in entry.subentries.values():
         if subentry.subentry_type != SUBENTRY_TYPE_AREA:
             continue
-        async_add_entities(
-            [MidnightAlarmArea(entry, subentry)],
-            config_subentry_id=subentry.subentry_id,
-        )
+        area = MidnightAlarmArea(entry, subentry)
+        areas.append(area)
+        async_add_entities([area], config_subentry_id=subentry.subentry_id)
+
+    # Only meaningful with at least one area to aggregate/override - added in
+    # the same setup pass (not a subentry of its own) so it's on the shared
+    # hub device rather than a per-area one.
+    if areas:
+        master = MidnightAlarmMaster(entry, areas)
+        for area in areas:
+            area.async_set_master(master)
+        async_add_entities([master])
 
 
 class _AreaFsmExtraData(ExtraStoredData):
@@ -102,6 +112,7 @@ class _AreaFsmExtraData(ExtraStoredData):
     def __init__(self, fsm: alarm_state_lib.AreaFsm) -> None:
         self.fsm = fsm
 
+    @override
     def as_dict(self) -> dict[str, Any]:
         return {
             "settled_state": str(self.fsm.settled_state),
@@ -164,6 +175,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self._delay_on_unsub: dict[str, CALLBACK_TYPE] = {}
         self._group_tallies: dict[str, GroupTally] = {}
         self._group_scores: dict[str, GroupScore] = {}
+        self._master: MidnightAlarmMaster | None = None
 
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = DeviceInfo(
@@ -181,7 +193,27 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 features |= MODE_TO_FEATURE[mode]
         self._attr_supported_features = features
 
+    def async_set_master(self, master: MidnightAlarmMaster) -> None:
+        """Link this area to its entry's master entity, set once at setup."""
+        self._master = master
+
+    @callback
+    @override
+    def _async_write_ha_state(self) -> None:
+        """Also refresh the master entity (if any) so it stays live-accurate.
+
+        Entity.async_write_ha_state itself is @final (its own docstring
+        says to override _async_write_ha_state instead) - this is that
+        hook. The public async_write_ha_state() call below on the master
+        is deliberate, not a typo: it runs the master's full write path
+        (thread-safety check included), not just its own private hook.
+        """
+        super()._async_write_ha_state()
+        if self._master is not None and self._master.hass is not None:
+            self._master.async_write_ha_state()
+
     @property
+    @override
     def alarm_state(self) -> AlarmControlPanelState:
         """Derive ARMING/PENDING/TRIGGERED from the FSM at read time."""
         state, fsm = alarm_state_lib.display_state(self._fsm, dt_util.utcnow())
@@ -189,11 +221,13 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         return state
 
     @property
+    @override
     def code_arm_required(self) -> bool:
         """No code is demanded at all until at least one user is configured."""
         return pin.any_users_configured(self._entry)
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         """Sensor/countdown detail a Lovelace card can render without Alarmo."""
         display = self.alarm_state  # also applies any pending auto-revert
@@ -232,6 +266,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
     # --- lifecycle -----------------------------------------------------
 
+    @override
     async def async_added_to_hass(self) -> None:
         """Restore FSM state and subscribe to configured sensors."""
         await super().async_added_to_hass()
@@ -254,15 +289,19 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
+    @override
     async def async_will_remove_from_hass(self) -> None:
         """Cancel any outstanding scheduled callbacks."""
         self._async_cancel_scheduled()
         for unsub in self._delay_on_unsub.values():
             unsub()
         self._delay_on_unsub = {}
+        if self._master is not None:
+            self._master.async_forget_area(self)
         await super().async_will_remove_from_hass()
 
     @property
+    @override
     def extra_restore_state_data(self) -> ExtraStoredData:
         """Persist the FSM so a mid-countdown restart resumes correctly."""
         return _AreaFsmExtraData(self._fsm)
@@ -351,28 +390,32 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
         self._async_schedule_arming(self._fsm.arming_until)
 
+    @override
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Arm away."""
         await self._async_start_arming(AlarmControlPanelState.ARMED_AWAY, code)
 
+    @override
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Arm home."""
         await self._async_start_arming(AlarmControlPanelState.ARMED_HOME, code)
 
+    @override
     async def async_alarm_arm_night(self, code: str | None = None) -> None:
         """Arm night."""
         await self._async_start_arming(AlarmControlPanelState.ARMED_NIGHT, code)
 
+    @override
     async def async_alarm_arm_vacation(self, code: str | None = None) -> None:
         """Arm vacation."""
         await self._async_start_arming(AlarmControlPanelState.ARMED_VACATION, code)
 
+    @override
     async def async_alarm_arm_custom_bypass(self, code: str | None = None) -> None:
         """Arm custom bypass."""
-        await self._async_start_arming(
-            AlarmControlPanelState.ARMED_CUSTOM_BYPASS, code
-        )
+        await self._async_start_arming(AlarmControlPanelState.ARMED_CUSTOM_BYPASS, code)
 
+    @override
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Disarm - always immediate, no delay."""
         match = await pin.async_validate_code(
@@ -387,6 +430,7 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
         self._fsm = alarm_state_lib.disarm()
         self.async_write_ha_state()
 
+    @override
     async def async_alarm_trigger(self, code: str | None = None) -> None:
         """Manual trigger (e.g. a panic button) - immediate, no entry delay."""
         settled = self._fsm.settled_state
@@ -395,6 +439,32 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
         )
         self._async_begin_trigger(entry_delay=0, trigger_time=trigger_time)
+
+    def _async_force_state(
+        self, mode: AlarmControlPanelState, *, changed_by: str | None
+    ) -> None:
+        """Force this area straight into `mode`, no PIN check, no exit delay.
+
+        Only ever called by this entry's MidnightAlarmMaster - it already
+        validated one master-level code (or none, if unconfigured) for the
+        whole action, so this is not a second checkpoint to pass. Cancels
+        any in-progress arming/pending/triggered cycle first, then either
+        disarms cleanly or arms with `exit_time=0, override=True` - "armed
+        right now, and sensors that would otherwise hold or abort the arm
+        don't apply for this session." That's the actual meaning of
+        "override": the master's command wins outright over whatever this
+        specific area's own settings would otherwise have done.
+        """
+        self._async_cancel_scheduled()
+        self._attr_changed_by = changed_by
+        self._fsm = (
+            alarm_state_lib.disarm()
+            if mode == AlarmControlPanelState.DISARMED
+            else alarm_state_lib.start_arming(
+                self._fsm, mode=mode, now=dt_util.utcnow(), exit_time=0, override=True
+            )
+        )
+        self.async_write_ha_state()
 
     # --- sensor-driven transitions ----------------------------------------
 
@@ -495,7 +565,10 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
 
         confirmed = False
         for group in groups:
-            if group.data.get(CONF_GROUP_MODE, MODE_COUNT_WINDOW) == MODE_WEIGHTED_DECAY:
+            if (
+                group.data.get(CONF_GROUP_MODE, MODE_COUNT_WINDOW)
+                == MODE_WEIGHTED_DECAY
+            ):
                 if self._group_score_confirmed(group, entity_id, now):
                     confirmed = True
                 continue
@@ -531,7 +604,9 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             score, threshold=group.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
         )
 
-    def _async_process_open_sensor(self, entity_id: str, options: dict[str, Any]) -> None:
+    def _async_process_open_sensor(
+        self, entity_id: str, options: dict[str, Any]
+    ) -> None:
         display = self.alarm_state  # also runs any pending auto-revert derivation
 
         if options.get(CONF_ALWAYS_ON):
@@ -612,3 +687,139 @@ class MidnightAlarmArea(AlarmControlPanelEntity, RestoreEntity):
             CONF_TRIGGER_TIME, DEFAULT_TRIGGER_TIME
         )
         self._async_begin_trigger(entry_delay=entry_delay, trigger_time=trigger_time)
+
+
+class MidnightAlarmMaster(AlarmControlPanelEntity):
+    """All-areas control - overrides every configured area at once.
+
+    Lives on the integration's shared hub device (alongside the Trigger
+    Alert button) rather than a device of its own - it isn't a physical
+    space, just a single point of control over every area. Arming or
+    disarming it *overrides* every area: each one is forced straight into
+    the target state immediately, bypassing that area's own exit-delay
+    countdown and any in-progress arming/pending/triggered cycle (see
+    MidnightAlarmArea._async_force_state) - a deliberate override, not a
+    fan-out of each area's normal service call. Its own displayed state is
+    a live read of every area's current state (see
+    alarm_state.aggregate_state), so it stays accurate even after an area
+    is later armed or disarmed individually and drifts from the rest.
+
+    Only one code check gates the whole action, via
+    pin.async_validate_code's area_subentry_id=None contract: a code is
+    only accepted if it belongs to a user with no area_limit at all -
+    someone restricted to specific areas isn't authorized to command the
+    whole home at once. If every configured user happens to be
+    area-restricted, code_arm_required is still True (the same "any user
+    configured" rule every area uses) but no code will ever satisfy it -
+    a deliberate consequence of that permission model, not a bug.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "all_areas"
+    _attr_should_poll = False
+    _attr_code_format = CodeFormat.NUMBER
+
+    def __init__(self, entry: ConfigEntry, areas: list[MidnightAlarmArea]) -> None:
+        """Initialize the master, aggregating the areas set up alongside it."""
+        self._entry = entry
+        self._areas = areas
+
+        self._attr_unique_id = f"{entry.entry_id}_master"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            # Matches __init__.py's/button.py's own hub device name.
+            name="Midnight 911",
+            manufacturer="Midnight Security",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+        features = AlarmControlPanelEntityFeature.TRIGGER
+        for area in areas:
+            features |= area._attr_supported_features
+        self._attr_supported_features = features
+
+    def async_forget_area(self, area: MidnightAlarmArea) -> None:
+        """Drop a removed area from the aggregate and refresh to reflect it.
+
+        Called from MidnightAlarmArea.async_will_remove_from_hass. Without
+        this, a deleted area's object would stay in self._areas forever -
+        not just a stale read until the next unrelated event, but a
+        permanent phantom member that every future aggregate_state() call
+        would keep including, since nothing else ever prunes this list.
+        """
+        if area in self._areas:
+            self._areas.remove(area)
+        if self.hass is not None:
+            self.async_write_ha_state()
+
+    @property
+    @override
+    def alarm_state(self) -> AlarmControlPanelState:
+        """Live aggregate of every area's current state."""
+        return alarm_state_lib.aggregate_state(
+            [area.alarm_state for area in self._areas]
+        )
+
+    @property
+    @override
+    def code_arm_required(self) -> bool:
+        """No code is demanded at all until at least one user is configured."""
+        return pin.any_users_configured(self._entry)
+
+    async def _async_force_all(
+        self,
+        mode: AlarmControlPanelState,
+        code: str | None,
+        action: Literal["arm", "disarm"],
+    ) -> None:
+        match = await pin.async_validate_code(
+            self.hass,
+            self._entry,
+            code=code,
+            area_subentry_id=None,
+            action=action,
+        )
+        changed_by = match.changed_by if match else None
+        self._attr_changed_by = changed_by
+        for area in self._areas:
+            area._async_force_state(mode, changed_by=changed_by)
+        self.async_write_ha_state()
+
+    @override
+    async def async_alarm_arm_away(self, code: str | None = None) -> None:
+        """Force every area armed away."""
+        await self._async_force_all(AlarmControlPanelState.ARMED_AWAY, code, "arm")
+
+    @override
+    async def async_alarm_arm_home(self, code: str | None = None) -> None:
+        """Force every area armed home."""
+        await self._async_force_all(AlarmControlPanelState.ARMED_HOME, code, "arm")
+
+    @override
+    async def async_alarm_arm_night(self, code: str | None = None) -> None:
+        """Force every area armed night."""
+        await self._async_force_all(AlarmControlPanelState.ARMED_NIGHT, code, "arm")
+
+    @override
+    async def async_alarm_arm_vacation(self, code: str | None = None) -> None:
+        """Force every area armed vacation."""
+        await self._async_force_all(AlarmControlPanelState.ARMED_VACATION, code, "arm")
+
+    @override
+    async def async_alarm_arm_custom_bypass(self, code: str | None = None) -> None:
+        """Force every area armed custom bypass."""
+        await self._async_force_all(
+            AlarmControlPanelState.ARMED_CUSTOM_BYPASS, code, "arm"
+        )
+
+    @override
+    async def async_alarm_disarm(self, code: str | None = None) -> None:
+        """Force every area disarmed."""
+        await self._async_force_all(AlarmControlPanelState.DISARMED, code, "disarm")
+
+    @override
+    async def async_alarm_trigger(self, code: str | None = None) -> None:
+        """Trigger every area at once - matches each area's own trigger (no code)."""
+        for area in self._areas:
+            await area.async_alarm_trigger()
+        self.async_write_ha_state()

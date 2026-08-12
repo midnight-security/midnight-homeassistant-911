@@ -18,6 +18,7 @@ node_modules/
 .ha_dev_config/
 
 # python
+.venv/
 __pycache__/
 *.pyc
 .pytest_cache/

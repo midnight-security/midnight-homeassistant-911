@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "button": {
+      "trigger_alert": {
+        "default": "mdi:alert"
+      }
+    }
+  }
+}

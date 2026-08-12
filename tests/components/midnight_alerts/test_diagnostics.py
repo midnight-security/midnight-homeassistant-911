@@ -1,4 +1,5 @@
 """Tests for diagnostics.py - PIN and API key redaction."""
+
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -8,18 +9,20 @@ from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
 
-from custom_components.midnight_alerts import diagnostics, pin
+from custom_components.midnight_alerts import pin, diagnostics
 from custom_components.midnight_alerts.const import (
-    CONF_API_KEY,
-    CONF_CODE,
-    CONF_MODES,
-    CONF_NAME,
     DOMAIN,
+    CONF_CODE,
+    CONF_NAME,
+    CONF_MODES,
+    CONF_API_KEY,
     SUBENTRY_TYPE_AREA,
     SUBENTRY_TYPE_USER,
 )
 
-VALIDATE = "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+VALIDATE = (
+    "custom_components.midnight_alerts.api.MidnightAlertsApiClient.async_validate"
+)
 
 
 async def _entry_with_user(hass) -> tuple[MockConfigEntry, str]:

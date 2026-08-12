@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,10 +12,9 @@ permissions:
 
 jobs:
   release:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5.1.0
         with:
           fetch-depth: 0
           # An admin-owned PAT, not the default GITHUB_TOKEN: master requires
@@ -30,7 +28,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: yarn
 
       - run: yarn install --frozen-lockfile
@@ -55,25 +53,9 @@ jobs:
         uses: getsentry/action-release@v3
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_ORG: midnightsecurity
+          SENTRY_PROJECT: midnight-homeassistant-911
         with:
           environment: production
           release: ${{ steps.after.outputs.version }}
           set_commits: auto
-
-  build-zip:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create Zip
-        run: cd custom_components/midnight_alerts && zip -r midnight_alerts.zip . -x 'midnight_alerts.zip'
-
-      - name: Upload Zip Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: midnight_alerts
-          path: custom_components/midnight_alerts/midnight_alerts.zip
-          if-no-files-found: error

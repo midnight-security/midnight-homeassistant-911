@@ -1,4 +1,5 @@
 """API client for Midnight Alerts."""
+
 import logging
 from typing import Any
 
@@ -30,10 +31,21 @@ class MidnightAlertsApiClient:
         report_errors: bool = False,
         release: str | None = None,
     ) -> None:
+        """Create a client bound to a single API key and aiohttp session."""
         self._api_key = api_key
         self._session = session
         self._report_errors = report_errors
         self._release = release
+
+    @property
+    def is_configured(self) -> bool:
+        """Whether an API key has actually been set.
+
+        The integration can be added with this blank (the alarm engine
+        works entirely locally regardless), so callers that would otherwise
+        make a doomed request - the button, mainly - can check this first.
+        """
+        return bool(self._api_key)
 
     async def async_validate(self, *, latitude: float, longitude: float) -> dict:
         """Validate the API key, raising if it is rejected.

@@ -74,20 +74,37 @@ unavailable entities before invoking them and this button has no
 polling/coordinator to ever retry and flip it back - see the comment on
 `MidnightAlertButton` in `button.py`.
 
-Still open, to revisit later: `icon-translations` and
-`reconfiguration-flow` (Gold — the latter is about the top-level API-key
-entry, not the alarm feature's own subentry reconfigure flows, which
-already work), `strict-typing` (Platinum).
-`dynamic-devices` is flagged but not resolved — each area subentry gets
-its own device added/removed live, and real core integrations disagree on
-whether that counts as "dynamic" for this rule (see the comment in
-`quality_scale.yaml`); needs an actual read of the rule's intent rather
-than a guess.
+`async-dependency` (Platinum) is also done - it turned out not to depend on
+the PyPI extraction after all. The rule is about whether device/service
+communication uses asyncio, not about that code living in a separate
+package (checked against the rule's own doc text). `api.py` already talks
+to the network exclusively through an injected `aiohttp.ClientSession`,
+`bcrypt` is already routed through `hass.async_add_executor_job`, and
+`sentry_sdk`'s `capture_exception` only enqueues onto its own background
+worker thread rather than blocking the event loop (verified directly
+against the installed `sentry_sdk` source). See the `async-dependency`
+comment in `quality_scale.yaml` for the full reasoning.
+
+`strict-typing` (Platinum) is also done now - see its `quality_scale.yaml`
+comment for the mypy setup. `reconfiguration-flow`
+is now done — the config flow accepts a blank API key at setup (the alarm
+engine works fully locally either way) and `async_step_reconfigure` lets
+one be added or changed afterward without removing and re-adding the
+entry. `icon-translations` is also done — `icons.json` now maps
+`entity.button.trigger_alert.default` to `"mdi:alert"`, replacing the
+hardcoded `_attr_icon` on the button; the two `alarm_control_panel`
+entities never set `_attr_icon` and already relied on HA's built-in
+state-based icons for that domain, so they needed no change.
+`dynamic-devices` is resolved as exempt — the rule's own docs describe it
+as automatic entity creation once a backend/external service discovers
+new hardware, not devices created by direct user action in a config
+subentry flow, and ntfy's own `quality_scale.yaml` marks this exact
+per-subentry-device shape exempt with "devices are added manually as
+subentries" (see the comment in `quality_scale.yaml`).
 
 ## Not today — separate coding sessions
 
-- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap)
-- Add `strict-typing` (mypy) once the above lands
+- Extract `api.py` into a standalone PyPI package (also closes its test-coverage gap) - the only remaining item blocking Bronze
 
 ## Housekeeping before the actual `home-assistant/core` PR
 

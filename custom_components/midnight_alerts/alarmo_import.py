@@ -21,48 +21,50 @@ automations engine is one of the anti-patterns this whole platform exists
 to avoid) - they're only counted, so the user knows to recreate the ones
 they still need as real HA automations.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
+from dataclasses import field, dataclass
 
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from . import sensors
 from .const import (
-    ALARMO_STORAGE_VERSION,
-    CONF_ALLOW_OPEN,
-    CONF_ALWAYS_ON,
-    CONF_AREA_LIMIT,
-    CONF_AREA_SUBENTRY_ID,
-    CONF_ARM_ON_CLOSE,
-    CONF_CAN_ARM,
-    CONF_CAN_DISARM,
     CONF_CODE,
-    CONF_DELAY_ON,
+    CONF_NAME,
+    CONF_MODES,
+    CONF_CAN_ARM,
     CONF_ENABLED,
+    CONF_TIMEOUT,
+    CONF_DELAY_ON,
     CONF_ENTITIES,
+    CONF_ALWAYS_ON,
+    CONF_EXIT_TIME,
+    CONF_ALLOW_OPEN,
+    CONF_AREA_LIMIT,
+    CONF_CAN_DISARM,
     CONF_ENTRY_TIME,
     CONF_EVENT_COUNT,
-    CONF_EXIT_TIME,
-    CONF_IS_OVERRIDE_CODE,
-    CONF_MODES,
-    CONF_NAME,
-    CONF_SENSOR_ENTRY_DELAY,
     CONF_SENSOR_TYPE,
-    CONF_TIMEOUT,
+    CONF_ARM_ON_CLOSE,
     CONF_TRIGGER_TIME,
-    CONF_USE_ENTRY_DELAY,
-    CONF_USE_EXIT_DELAY,
-    DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
-    DEFAULT_TRIGGER_TIME,
+    DEFAULT_ENTRY_TIME,
     SUBENTRY_TYPE_AREA,
-    SUBENTRY_TYPE_SENSOR_GROUP,
     SUBENTRY_TYPE_USER,
+    CONF_USE_EXIT_DELAY,
+    CONF_USE_ENTRY_DELAY,
+    DEFAULT_TRIGGER_TIME,
+    CONF_AREA_SUBENTRY_ID,
+    CONF_IS_OVERRIDE_CODE,
+    ALARMO_STORAGE_VERSION,
+    CONF_SENSOR_ENTRY_DELAY,
+    SUBENTRY_TYPE_SENSOR_GROUP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +80,7 @@ _ALARMO_MODES = (
 
 @dataclass
 class SensorImport:
-    """One sensor's alarm-specific options, ready for sensors.async_set_sensor_options."""
+    """One sensor's alarm options, ready for sensors.async_set_sensor_options."""
 
     entity_id: str
     options: dict[str, Any]
@@ -156,23 +158,31 @@ def parse_import(raw: dict[str, Any]) -> AlarmoImportPlan | None:
                 unique_id=_subentry_id("area", area_id),
                 subentry_type=SUBENTRY_TYPE_AREA,
                 title=area.get("name", "Imported area"),
-                data={
-                    CONF_NAME: area.get("name", "Imported area"),
-                    CONF_MODES: {
-                        mode: {
-                            CONF_ENABLED: bool(modes_data.get(mode, {}).get("enabled")),
-                            CONF_EXIT_TIME: modes_data.get(mode, {}).get("exit_time")
-                            or DEFAULT_EXIT_TIME,
-                            CONF_ENTRY_TIME: modes_data.get(mode, {}).get("entry_time")
-                            or DEFAULT_ENTRY_TIME,
-                            CONF_TRIGGER_TIME: modes_data.get(mode, {}).get(
-                                "trigger_time"
-                            )
-                            or DEFAULT_TRIGGER_TIME,
-                        }
-                        for mode in _ALARMO_MODES
-                    },
-                },
+                data=MappingProxyType(
+                    {
+                        CONF_NAME: area.get("name", "Imported area"),
+                        CONF_MODES: {
+                            mode: {
+                                CONF_ENABLED: bool(
+                                    modes_data.get(mode, {}).get("enabled")
+                                ),
+                                CONF_EXIT_TIME: modes_data.get(mode, {}).get(
+                                    "exit_time"
+                                )
+                                or DEFAULT_EXIT_TIME,
+                                CONF_ENTRY_TIME: modes_data.get(mode, {}).get(
+                                    "entry_time"
+                                )
+                                or DEFAULT_ENTRY_TIME,
+                                CONF_TRIGGER_TIME: modes_data.get(mode, {}).get(
+                                    "trigger_time"
+                                )
+                                or DEFAULT_TRIGGER_TIME,
+                            }
+                            for mode in _ALARMO_MODES
+                        },
+                    }
+                ),
             )
         )
 
@@ -184,17 +194,22 @@ def parse_import(raw: dict[str, Any]) -> AlarmoImportPlan | None:
                 unique_id=_subentry_id("user", user_id),
                 subentry_type=SUBENTRY_TYPE_USER,
                 title=user.get("name", "Imported user"),
-                data={
-                    CONF_NAME: user.get("name", "Imported user"),
-                    CONF_CODE: user.get("code", ""),  # already bcrypt+base64 - same format
-                    CONF_CAN_ARM: bool(user.get("can_arm", True)),
-                    CONF_CAN_DISARM: bool(user.get("can_disarm", True)),
-                    CONF_IS_OVERRIDE_CODE: bool(user.get("is_override_code")),
-                    CONF_ENABLED: bool(user.get("enabled", True)),
-                    CONF_AREA_LIMIT: [
-                        _subentry_id("area", str(a)) for a in user.get("area_limit", [])
-                    ],
-                },
+                data=MappingProxyType(
+                    {
+                        CONF_NAME: user.get("name", "Imported user"),
+                        CONF_CODE: user.get(
+                            "code", ""
+                        ),  # already bcrypt+base64 - same format
+                        CONF_CAN_ARM: bool(user.get("can_arm", True)),
+                        CONF_CAN_DISARM: bool(user.get("can_disarm", True)),
+                        CONF_IS_OVERRIDE_CODE: bool(user.get("is_override_code")),
+                        CONF_ENABLED: bool(user.get("enabled", True)),
+                        CONF_AREA_LIMIT: [
+                            _subentry_id("area", str(a))
+                            for a in user.get("area_limit", [])
+                        ],
+                    }
+                ),
             )
         )
 
@@ -206,12 +221,14 @@ def parse_import(raw: dict[str, Any]) -> AlarmoImportPlan | None:
                 unique_id=_subentry_id("sensor_group", group_id),
                 subentry_type=SUBENTRY_TYPE_SENSOR_GROUP,
                 title=group.get("name", "Imported group"),
-                data={
-                    CONF_NAME: group.get("name", "Imported group"),
-                    CONF_ENTITIES: list(group.get("entities", [])),
-                    CONF_TIMEOUT: group.get("timeout", 10),
-                    CONF_EVENT_COUNT: group.get("event_count", 2),
-                },
+                data=MappingProxyType(
+                    {
+                        CONF_NAME: group.get("name", "Imported group"),
+                        CONF_ENTITIES: list(group.get("entities", [])),
+                        CONF_TIMEOUT: group.get("timeout", 10),
+                        CONF_EVENT_COUNT: group.get("event_count", 2),
+                    }
+                ),
             )
         )
 

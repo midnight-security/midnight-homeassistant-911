@@ -1,4 +1,5 @@
 """Fixtures for Midnight Alerts tests."""
+
 import pytest
 
 

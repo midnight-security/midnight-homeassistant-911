@@ -16,10 +16,11 @@ Two independent confirmation models are supported:
   sensors count for more than others instead of every member being
   equal.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
+from dataclasses import field, replace, dataclass
 
 
 @dataclass(frozen=True)
@@ -28,10 +29,12 @@ class GroupTally:
 
     trips: dict[str, datetime] = field(default_factory=dict)
 
-    def record_trip(self, entity_id: str, now: datetime) -> "GroupTally":
+    def record_trip(self, entity_id: str, now: datetime) -> GroupTally:
+        """Return a new tally with this member's trip timestamp recorded."""
         return replace(self, trips={**self.trips, entity_id: now})
 
     def confirmed_count(self, *, now: datetime, timeout: int) -> int:
+        """Count members that have tripped within `timeout` seconds of now."""
         cutoff = now - timedelta(seconds=timeout)
         return sum(1 for ts in self.trips.values() if ts >= cutoff)
 
@@ -52,7 +55,8 @@ class GroupScore:
 
     def record_trip(
         self, *, weight: float, decay_per_minute: float, now: datetime
-    ) -> "GroupScore":
+    ) -> GroupScore:
+        """Return a new score with this trip's weight added, after decay."""
         decayed = self._decayed(now=now, decay_per_minute=decay_per_minute)
         return GroupScore(score=decayed + weight, last_update=now)
 

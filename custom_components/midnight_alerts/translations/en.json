@@ -4,13 +4,23 @@
       "trigger_alert": {
         "name": "Trigger Alert"
       }
+    },
+    "alarm_control_panel": {
+      "all_areas": {
+        "name": "All Areas"
+      }
     }
   },
   "config": {
     "step": {
       "user": {
         "data": {
-          "api_key": "API Key"
+          "api_key": "API Key",
+          "enable_crash_reporting": "Send crash reports to Midnight Security"
+        },
+        "data_description": {
+          "api_key": "Leave blank to set up the alarm system (areas, sensors, PINs) without dispatching to Midnight yet - add a key anytime later from Reconfigure.",
+          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data. Changeable anytime from Reconfigure."
         }
       }
     },
@@ -22,19 +32,8 @@
     },
     "abort": {
       "already_configured": "Device is already configured",
-      "reauth_successful": "Re-authentication was successful"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "data": {
-          "enable_crash_reporting": "Send crash reports to Midnight Security"
-        },
-        "data_description": {
-          "enable_crash_reporting": "Helps us catch bugs faster. Only the error type and message are sent - never your address, API key, or alert data."
-        }
-      }
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Settings updated"
     }
   },
   "config_subentries": {
@@ -230,7 +229,39 @@
   "issues": {
     "location_mismatch": {
       "title": "Home Assistant's location doesn't match the address on file",
-      "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under Settings > System > General, or update the address on your midnight.security account, then reload this integration."
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix the location mismatch",
+            "description": "This Home Assistant instance's configured location is more than 1000 feet from the address on file for the Midnight 911 API key in use. A real emergency dispatch would go to the wrong place. Fix Home Assistant's location under [Settings > System > General](/config/general), or update the address on your midnight.security account. Which side needs fixing?",
+            "menu_options": {
+              "update_key": "Swap in a different API key",
+              "recheck": "I've already fixed the address or Home Assistant's location - recheck now"
+            }
+          }
+        },
+        "abort": {
+          "reauth_started": "Re-authentication started - reopen this repair once you've entered the new key to confirm it resolved the mismatch.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 Integration for a Reauthenticate prompt, or wait a few minutes for it to expire and try again.",
+          "still_mismatched": "Still more than 1000 feet apart - double check the address on your midnight.security account and Home Assistant's location, then try again.",
+          "resolved": "Locations now match. Issue resolved."
+        }
+      }
+    },
+    "no_api_key": {
+      "title": "Midnight 911 can't send alerts yet - no API key",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Add your API key",
+            "description": "This instance was set up without an API key, so the **Trigger Alert** button won't do anything yet - the alarm system itself (areas, sensors, PINs, arming/disarming) already works fully regardless. Select **Submit** to add one now."
+          }
+        },
+        "abort": {
+          "reauth_started": "Opening the form to add your key - this issue clears itself once a working one is saved.",
+          "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 Integration for a Reauthenticate prompt, or wait a few minutes for it to expire and try again."
+        }
+      }
     }
   }
 }

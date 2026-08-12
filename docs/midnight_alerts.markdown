@@ -1,5 +1,5 @@
 ---
-title: Midnight 911
+title: Midnight 911 Integration
 description: Instructions on how to set up the Midnight 911 integration.
 ha_category:
   - Safety
@@ -85,37 +85,38 @@ During setup you'll be asked for:
 
 | Field | Description |
 | --- | --- |
-| API Key | The API key from your Midnight Security account. |
+| API Key | The API key from your Midnight Security account. **Optional** - leave it blank to set up the alarm system (areas, sensors, PINs, arming/disarming) without dispatching to Midnight yet. Everything works locally either way; only the **Trigger Alert** button needs a key, and it logs a clear error instead of doing anything if pressed without one. Leaving it blank raises a Repair (Settings → System → Repairs) prompting you to add one when you're ready - confirming it opens the same "Reauthenticate" prompt used for a rejected key, and the issue clears itself once a working key is saved. |
+| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. Changeable anytime from Reconfigure; reauthenticating a rejected key leaves it untouched. |
 
-Setup also verifies that Home Assistant's own configured location (Settings
-→ System → General) is within 1000 feet of the address on file for that API
-key, and blocks completing setup if they don't match closely enough — this
-catches a key pasted into the wrong Home Assistant instance, or a stale
-`hass.config` location, before it could send a real emergency dispatch to
-the wrong place. This same check runs again every time the integration
-loads (e.g. after a restart); if Home Assistant's location drifts out of
-sync afterward, it's surfaced as a Repair (Settings → System → Repairs)
-rather than breaking the integration outright.
+If you do provide a key, setup also verifies that Home Assistant's own
+configured location (Settings → System → General) is within 1000 feet of
+the address on file for it, and blocks completing setup if they don't
+match closely enough — this catches a key pasted into the wrong Home
+Assistant instance, or a stale `hass.config` location, before it could
+send a real emergency dispatch to the wrong place. This same check runs
+again every time the integration loads (e.g. after a restart); if Home
+Assistant's location drifts out of sync afterward, it's surfaced as a
+Repair (Settings → System → Repairs) rather than breaking the integration
+outright. None of this runs at all if the key is left blank - there's
+nothing to validate yet.
 
-If the stored API key stops validating later (revoked, rotated, etc.),
-Home Assistant automatically prompts for a new one - via a
-"Reauthenticate" notification on the integration's card, no need to
-remove and re-add it. The new key goes through the same location check
-described above.
+Left the key blank, or want to change either field later? Settings →
+Devices & services → Midnight 911 Integration → **Reconfigure** opens the same form
+again, pre-filled with your current key (if any) and crash-reporting
+choice, and goes through the same location check if you provide a key.
+This is the one place to revisit either setting after initial setup -
+there's no separate Configure/options screen duplicating it.
 
-This creates the **Midnight 911** hub and the **Trigger Alert** button.
-Everything below is optional, added afterward from the hub's own **Add**
-menu (Settings → Devices & services → Midnight 911 → Add), and takes effect
+If a *stored* API key stops validating (revoked, rotated, etc.), Home
+Assistant automatically prompts for a new one - via a "Reauthenticate"
+notification on the integration's card, no need to remove and re-add it.
+The new key goes through the same location check described above.
+
+This creates the **Midnight 911** hub device and the **Trigger Alert**
+button, under the **Midnight 911 Integration** entry. Everything below is
+optional, added afterward from the entry's own **Add** menu (Settings →
+Devices & services → Midnight 911 Integration → Add), and takes effect
 immediately with no restart required.
-
-### Configuration options
-
-Settings → Devices & services → Midnight 911 → **Configure** opens one
-option, changeable any time without removing the integration:
-
-| Field | Description |
-| --- | --- |
-| Send crash reports to Midnight Security | Off by default. Helps diagnose bugs faster - only the error type and message are sent, never your address, API key, or alert data. |
 
 ### Adding an alarm area
 
@@ -218,12 +219,34 @@ sensor groups, sensors, and automations found) before you confirm.
 - Running the import again is a safe no-op — nothing already imported gets
   duplicated.
 
+### The "All Areas" entity
+
+As soon as at least one area is configured, an extra **All Areas**
+`alarm_control_panel` entity appears on the **Midnight 911** hub device.
+Arming or disarming it **overrides every area at once**: each area is
+forced straight into that state immediately, skipping its own exit delay
+and any arming/pending/triggered cycle already in progress. Its displayed
+state always reflects reality — if any area is triggered that shows
+first, then pending, then arming, then (only if every area happens to
+share the exact same armed mode) that mode; anything else, including a mix
+of armed and disarmed areas, shows as disarmed rather than claim
+protection that isn't actually uniform.
+
+A PIN entered on **All Areas** is checked once, against users configured
+with no per-area restriction at all — someone limited to specific areas
+isn't authorized to command the whole home through this entity, even
+though the same PIN still works on their own permitted area(s)
+individually. If every configured user happens to be area-restricted, no
+PIN will ever satisfy **All Areas**, even though it still shows as
+requiring one.
+
 ## Supported functions
 
 | Entity | Type | Description |
 | --- | --- | --- |
 | Trigger Alert | Button | Sends an alert to Midnight's monitoring center for the address on your account. |
 | *(area name)* | Alarm Control Panel | One per configured area. Supports arm away/home/night/vacation/custom bypass (per what's enabled on that area), disarm, and manual trigger, each optionally requiring a user's PIN. |
+| All Areas | Alarm Control Panel | Present once at least one area exists. Overrides every area's arm/disarm state at once, bypassing each area's own exit delay; PIN-restricted to users with no per-area limit. |
 
 ## Data updates
 
@@ -280,14 +303,15 @@ automation:
 <div class='note'>
 
 The YAML above is a starting point to hand-adapt. For a ready-made version
-of each with no copy-pasting required, see the two bundled blueprints
-below.
+of each with no copy-pasting required, see the bundled blueprints below -
+including one that generalizes the second example to work with any
+alarm_control_panel entity, Alarmo included.
 
 </div>
 
 ### Ready-made blueprints
 
-This repo bundles five blueprints under
+This repo bundles six blueprints under
 [`blueprints/automation/midnight_alerts/`](https://github.com/midnight-security/midnight-homeassistant-911/tree/master/blueprints/automation/midnight_alerts) —
 the direct replacement for Alarmo's own built-in "notification," "device
 switching," and "automatic arming" automation features, as real, editable
@@ -301,13 +325,14 @@ integration:
 | [Re-arm After Timeout](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/rearm_after_timeout.yaml) | Automatically re-arms an area into a mode you choose if it's left disarmed longer than a configurable timeout. |
 | [Auto-Arm Away When Everyone Leaves](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/auto_arm_away_when_everyone_leaves.yaml) | Arms an area away once every tracked `person` entity has left home. Alarmo's own docs say this specific recipe needs a hand-written automation too - this is that automation, ready to use. |
 | [Retry Arm on Failed Arm](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/retry_arm_on_failed_to_arm.yaml) | Sends an actionable notification with a "Retry Arm" button whenever a sensor without exit delay blocks arming - the equivalent of Alarmo's actionable "failed to arm" push notification. |
+| [Dispatch on Trigger](https://github.com/midnight-security/midnight-homeassistant-911/blob/master/blueprints/automation/midnight_alerts/dispatch_on_trigger.yaml) | Presses the Trigger Alert button once **any** alarm_control_panel entity - not just a Midnight Alarm area - has stayed `triggered` for a grace period you set. Point it at an Alarmo area to let Alarmo drive Midnight's real 911 dispatch while you keep using Alarmo's own UI for the alarm itself. |
 
 To use one: **Settings → Automations & Scenes → Blueprints → Import
 Blueprint**, paste that blueprint's GitHub link above, then create an
 automation from it like any other blueprint - pick the area (and whatever
 else the blueprint asks for) from the dropdowns.
 
-The last one listens for `midnight_alerts_arm_failed`, an event this
+"Retry Arm on Failed Arm" listens for `midnight_alerts_arm_failed`, an event this
 integration fires whenever a sensor configured without exit delay opens
 mid-arming and aborts it - the equivalent of Alarmo's own
 `alarmo_failed_to_arm` event. Its data includes `entity_id` (the area),
@@ -438,3 +463,6 @@ Security account or monitoring plan — manage or cancel that separately at
   "debounce" options only apply to sensors newly attached in that same
   submission — changing them for an already-attached sensor means
   detaching and re-attaching it.
+- The **All Areas** entity's arm/disarm always skips every area's exit
+  delay - there's no "override, but still walk out the door first" mode.
+  If you need a walk-out delay, arm each area individually instead.
