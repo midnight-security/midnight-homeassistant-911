@@ -3,7 +3,6 @@ node_modules/
 
 # build output
 /dist/
-yarn.lock
 
 # env
 .env
