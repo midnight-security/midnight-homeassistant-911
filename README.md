@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/midnight_alerts/brand/dark_logo.png">
+    <img src="custom_components/midnight_alerts/brand/logo.png" alt="Midnight" width="280">
+  </picture>
+</p>
+
 # Midnight 911 for Home Assistant
 
 [![License][license-shield]](LICENSE)
