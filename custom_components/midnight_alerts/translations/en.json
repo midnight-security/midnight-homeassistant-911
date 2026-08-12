@@ -17,7 +17,6 @@
         "title": "Connect Midnight 911",
         "description": "Enter your Midnight API key. Don't have one yet? [Get a key]({get_key_url}).",
         "data": {
-          "api_key": "API Key"
           "api_key": "API Key",
           "enable_crash_reporting": "Send crash reports to Midnight Security"
         },
@@ -265,7 +264,6 @@
           "already_in_progress": "A key-update form is already open for this entry - check Settings > Devices & services > Midnight 911 Integration for a Reauthenticate prompt, or wait a few minutes for it to expire and try again."
         }
       }
->>>>>>> refs/remotes/origin/master
     }
   }
 }

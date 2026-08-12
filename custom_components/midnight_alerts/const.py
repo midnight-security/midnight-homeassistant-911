@@ -91,4 +91,3 @@ MODE_TO_FEATURE: Final = {
         AlarmControlPanelEntityFeature.ARM_CUSTOM_BYPASS
     ),
 }
->>>>>>> refs/remotes/origin/master

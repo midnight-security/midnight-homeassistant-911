@@ -1,6 +1,4 @@
 """Config flow for Midnight Alerts."""
-import voluptuous as vol
-
 from __future__ import annotations
 
 from typing import Any, override
@@ -82,7 +80,6 @@ DATA_SCHEMA = vol.Schema(
 # exactly one place: reconfigure, alongside the API key (see
 # _user_data_schema). No separate Configure/options flow exists for it.
 API_KEY_ONLY_SCHEMA = vol.Schema({vol.Optional(CONF_API_KEY, default=""): str})
->>>>>>> refs/remotes/origin/master
 
 
 class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -816,5 +813,4 @@ class AlarmoImportSubentryFlowHandler(ConfigSubentryFlow):
                 "sensors": str(len(plan.sensor_imports)),
                 "automations_skipped": str(plan.automation_count),
             },
->>>>>>> refs/remotes/origin/master
         )
