@@ -6,10 +6,9 @@ from typing import Any
 from aiohttp import ClientError, ClientSession
 
 from . import error_reporting
+from .const import BASE_API_URL
 
 _LOGGER = logging.getLogger(__name__)
-
-BASE_URL = "https://api.midnight.security/functions/v1"
 
 
 class MidnightAlertsApiError(Exception):
@@ -66,7 +65,7 @@ class MidnightAlertsApiClient:
         await self._async_request("POST", "alerts", json=payload)
 
     async def _async_request(self, method: str, path: str, **kwargs: Any) -> dict:
-        url = f"{BASE_URL}/{path}"
+        url = f"{BASE_API_URL}/{path}"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",

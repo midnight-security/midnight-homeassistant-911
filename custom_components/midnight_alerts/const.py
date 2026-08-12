@@ -1,5 +1,6 @@
 """Constants for Midnight Alerts integration."""
 
+import os
 from typing import Final
 
 from homeassistant.components.alarm_control_panel import (
@@ -10,8 +11,19 @@ from homeassistant.components.alarm_control_panel import (
 DOMAIN = "midnight_alerts"
 CONF_API_KEY = "api_key"
 CONF_BASE_URL = "base_url"
-GET_KEY_URL = "https://dev.app.midnight.security/login"
 CONF_ENABLE_CRASH_REPORTING = "enable_crash_reporting"
+
+# Set MIDNIGHT_ALERTS_ENV=dev in the environment to point the integration at
+# the dev deployment instead of prod. Any other value (including unset)
+# defaults to prod.
+if os.environ.get("MIDNIGHT_ALERTS_ENV") == "dev":
+    BASE_API_URL = "https://dev.api.midnight.security/functions/v1"
+    BASE_APP_URL = "https://dev.app.midnight.security"
+else:
+    BASE_API_URL = "https://api.midnight.security/functions/v1"
+    BASE_APP_URL = "https://app.midnight.security"
+
+GET_KEY_URL = f"{BASE_APP_URL}/login"
 
 # --- Midnight Alarm (alarm_control_panel platform) ---
 
