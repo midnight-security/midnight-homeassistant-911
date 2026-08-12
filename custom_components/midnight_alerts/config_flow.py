@@ -149,6 +149,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=self._user_data_schema(),
             errors=errors,
+            description_placeholders={"get_key_url": GET_KEY_URL},
         )
 
     async def _async_finish(
