@@ -3,7 +3,6 @@
   "name": "Midnight 911 Integration",
   "codeowners": ["@conryf"],
   "config_flow": true,
-  "dependencies": ["http"],
   "documentation": "https://github.com/midnight-security/ha-midnight-noo",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/midnight-security/ha-midnight-noo/issues",

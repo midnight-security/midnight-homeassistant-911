@@ -6,20 +6,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import MidnightAlertsApiClient, MidnightAlertsApiError, MidnightAlertsAuthError
 from .const import DOMAIN, CONF_API_KEY
-from .http_views import MidnightAlertsExternalCallbackView
 
 PLATFORMS = ["button"]
-
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Midnight Alerts integration.
-
-    Registers the HTTP view that app.midnight.security redirects back to
-    once a login/API key exchange finishes, even before any config entry
-    exists.
-    """
-    hass.http.register_view(MidnightAlertsExternalCallbackView())
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -5,7 +5,12 @@ from aiohttp import ClientError, ClientSession
 
 _LOGGER = logging.getLogger(__name__)
 
-BASE_URL = "https://alerts.midnight.security/api"
+# alerts.midnight.security still points at the old, decommissioned
+# midnight-noo-api Railway service (502s). dev.api.midnight.security is the
+# dev-environment equivalent of api.midnight.security (proxies to the
+# `develop` branch Supabase project) -- matches dev.app.midnight.security,
+# which is what all API keys/HA testing has actually been done against.
+BASE_URL = "https://dev.api.midnight.security/functions/v1"
 
 
 class MidnightAlertsApiError(Exception):
@@ -14,27 +19,6 @@ class MidnightAlertsApiError(Exception):
 
 class MidnightAlertsAuthError(MidnightAlertsApiError):
     """Raised when the API key is rejected."""
-
-
-async def async_exchange_code(session: ClientSession, code: str) -> str:
-    """Exchange a one-time login code from app.midnight.security for an API key."""
-    url = f"{BASE_URL}/oauth/token"
-    try:
-        async with session.post(url, json={"code": code}) as resp:
-            if resp.status in (400, 401, 403):
-                raise MidnightAlertsAuthError(f"Login code rejected ({resp.status})")
-            if resp.status != 200:
-                raise MidnightAlertsApiError(
-                    f"POST oauth/token failed: {resp.status} {await resp.text()}"
-                )
-            data = await resp.json()
-    except ClientError as err:
-        raise MidnightAlertsApiError(f"Error connecting to API: {err}") from err
-
-    api_key = data.get("api_key")
-    if not api_key:
-        raise MidnightAlertsApiError("Exchange response missing api_key")
-    return api_key
 
 
 class MidnightAlertsApiClient:
