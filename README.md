@@ -26,7 +26,7 @@ HACS is currently required.
 
 ## How it Works
 
-This integration works in partnership with [RapidSOS](https://www.rapidsos.com) and uses their service to validate 911 calls and reach the associated 911 center.
+This integration works in partnership with Security Monitoring to validate 911 calls and reach the associated 911 center.
 
 It's VERY IMPORTANT you keep the address on your [Midnight Account](https://app.midnight.security) updated properly — that's the address a real dispatch is sent to, not anything configured in Home Assistant. Setup checks that Home Assistant's own configured location is within 1000 feet of that address and will refuse to continue (or raise a Repair, if it drifts out of sync later) if they don't match.
 
