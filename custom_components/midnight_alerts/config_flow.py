@@ -1,12 +1,11 @@
 """Config flow for Midnight Alerts."""
+
 from __future__ import annotations
 
 from typing import Any, override
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
-
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.config_entries import (
@@ -30,6 +29,7 @@ from .const import (
     CONF_CODE,
     CONF_NAME,
     CONF_MODES,
+    GET_KEY_URL,
     CONF_API_KEY,
     CONF_CAN_ARM,
     CONF_ENABLED,
@@ -41,7 +41,6 @@ from .const import (
     CONF_EXIT_TIME,
     CONF_THRESHOLD,
     DEFAULT_WEIGHT,
-    GET_KEY_URL,
     CONF_AREA_LIMIT,
     CONF_CAN_DISARM,
     CONF_ENTRY_TIME,

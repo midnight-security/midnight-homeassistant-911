@@ -33,7 +33,9 @@ async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
     and pass this Home Assistant instance's own lat/lng as query params, since
     the server (not this client) does the location-match comparison."""
     aioclient_mock.get(
-        f"{BASE_API_URL}/validate", status=200, json={"valid": True, "location_match": True}
+        f"{BASE_API_URL}/validate",
+        status=200,
+        json={"valid": True, "location_match": True},
     )
 
     result = await _client(hass).async_validate(latitude=1.0, longitude=2.0)
