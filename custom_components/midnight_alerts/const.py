@@ -10,8 +10,10 @@ from homeassistant.components.alarm_control_panel import (
 DOMAIN = "midnight_alerts"
 CONF_API_KEY = "api_key"
 CONF_BASE_URL = "base_url"
-GET_KEY_URL = "https://dev.app.midnight.security/login"
 CONF_ENABLE_CRASH_REPORTING = "enable_crash_reporting"
+
+BASE_API_URL = "https://api.midnight.security/functions/v1"
+GET_KEY_URL = "https://app.midnight.security/login"
 
 # --- Midnight Alarm (alarm_control_panel platform) ---
 

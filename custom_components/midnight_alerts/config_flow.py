@@ -29,6 +29,7 @@ from .const import (
     CONF_CODE,
     CONF_NAME,
     CONF_MODES,
+    GET_KEY_URL,
     CONF_API_KEY,
     CONF_CAN_ARM,
     CONF_ENABLED,
@@ -147,6 +148,7 @@ class MidnightAlertsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=self._user_data_schema(),
             errors=errors,
+            description_placeholders={"get_key_url": GET_KEY_URL},
         )
 
     async def _async_finish(

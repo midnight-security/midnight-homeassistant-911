@@ -8,7 +8,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.midnight_alerts import error_reporting
 from custom_components.midnight_alerts.api import (
-    BASE_URL,
+    BASE_API_URL,
     MidnightAlertsApiError,
     MidnightAlertsApiClient,
     MidnightAlertsAuthError,
@@ -29,11 +29,13 @@ async def test_is_configured_reflects_whether_a_key_was_set(hass):
 
 
 async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
-    """validate() must call BASE_URL/validate with a bearer Authorization header
+    """validate() must call BASE_API_URL/validate with a bearer Authorization header
     and pass this Home Assistant instance's own lat/lng as query params, since
     the server (not this client) does the location-match comparison."""
     aioclient_mock.get(
-        f"{BASE_URL}/validate", status=200, json={"valid": True, "location_match": True}
+        f"{BASE_API_URL}/validate",
+        status=200,
+        json={"valid": True, "location_match": True},
     )
 
     result = await _client(hass).async_validate(latitude=1.0, longitude=2.0)
@@ -48,21 +50,21 @@ async def test_async_validate_hits_versioned_base_url(hass, aioclient_mock):
 
 
 async def test_async_trigger_alert_posts_json_payload(hass, aioclient_mock):
-    """trigger_alert() must POST the payload to BASE_URL/alerts."""
-    aioclient_mock.post(f"{BASE_URL}/alerts", status=200, json={})
+    """trigger_alert() must POST the payload to BASE_API_URL/alerts."""
+    aioclient_mock.post(f"{BASE_API_URL}/alerts", status=200, json={})
 
     await _client(hass).async_trigger_alert({"area": "home"})
 
     method, url, data, _ = aioclient_mock.mock_calls[0]
     assert method == "POST"
-    assert str(url) == f"{BASE_URL}/alerts"
+    assert str(url) == f"{BASE_API_URL}/alerts"
     assert data == {"area": "home"}
 
 
 @pytest.mark.parametrize("status", [401, 403])
 async def test_auth_rejection_raises_auth_error(hass, aioclient_mock, status):
     """401/403 must raise MidnightAlertsAuthError, not the generic error."""
-    aioclient_mock.get(f"{BASE_URL}/validate", status=status)
+    aioclient_mock.get(f"{BASE_API_URL}/validate", status=status)
 
     with pytest.raises(MidnightAlertsAuthError, match=str(status)):
         await _client(hass).async_validate(latitude=1.0, longitude=2.0)
@@ -77,7 +79,7 @@ async def test_non_200_error_message_excludes_response_body(
     in the debug log instead.
     """
     body = "<html><body>502 Bad Gateway</body></html>"
-    aioclient_mock.get(f"{BASE_URL}/validate", status=502, text=body)
+    aioclient_mock.get(f"{BASE_API_URL}/validate", status=502, text=body)
 
     with caplog.at_level("DEBUG"):
         with pytest.raises(MidnightAlertsApiError) as exc_info:
@@ -90,7 +92,7 @@ async def test_non_200_error_message_excludes_response_body(
 
 async def test_connection_failure_wrapped_in_api_error(hass, aioclient_mock):
     """A transport-level failure (no HTTP response) is wrapped, not leaked raw."""
-    aioclient_mock.get(f"{BASE_URL}/validate", exc=ClientConnectionError("boom"))
+    aioclient_mock.get(f"{BASE_API_URL}/validate", exc=ClientConnectionError("boom"))
 
     with pytest.raises(MidnightAlertsApiError, match="Error connecting to API"):
         await _client(hass).async_validate(latitude=1.0, longitude=2.0)
@@ -100,7 +102,7 @@ async def test_failures_reported_with_operation_and_release_when_enabled(
     hass, aioclient_mock
 ):
     """report_errors=True forwards the failure to error_reporting, path as operation."""
-    aioclient_mock.get(f"{BASE_URL}/validate", status=500, text="boom")
+    aioclient_mock.get(f"{BASE_API_URL}/validate", status=500, text="boom")
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
@@ -117,7 +119,7 @@ async def test_failures_reported_with_operation_and_release_when_enabled(
 
 async def test_failures_not_enabled_for_reporting_by_default(hass, aioclient_mock):
     """report_errors defaults False, so error_reporting is told not to report."""
-    aioclient_mock.get(f"{BASE_URL}/validate", status=500, text="boom")
+    aioclient_mock.get(f"{BASE_API_URL}/validate", status=500, text="boom")
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
@@ -129,7 +131,7 @@ async def test_failures_not_enabled_for_reporting_by_default(hass, aioclient_moc
 
 async def test_connection_failure_also_reported_when_enabled(hass, aioclient_mock):
     """The ClientError path reports through error_reporting too, not just API errors."""
-    aioclient_mock.get(f"{BASE_URL}/validate", exc=ClientConnectionError("boom"))
+    aioclient_mock.get(f"{BASE_API_URL}/validate", exc=ClientConnectionError("boom"))
 
     with patch.object(error_reporting, "report_exception") as mock_report:
         with pytest.raises(MidnightAlertsApiError):
