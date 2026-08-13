@@ -1,0 +1,96 @@
+name: Bug report
+description: Report something that isn't working as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        **Do not use this form to report a security vulnerability** - see [SECURITY.md](https://github.com/midnight-security/midnight-homeassistant-911/blob/develop/SECURITY.md) instead.
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.7.3"
+    validations:
+      required: true
+  - type: input
+    id: integration-version
+    attributes:
+      label: Midnight 911 integration version
+      description: Settings → Devices & services → Midnight 911 Integration
+      placeholder: "0.4.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      options:
+        - HACS
+        - Manual
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part is affected?
+      multiple: true
+      options:
+        - Config flow / setup
+        - Trigger Alert button
+        - Midnight Alarm (areas, arm/disarm/trigger)
+        - Users & PIN codes
+        - Sensor groups
+        - Alarmo import
+        - Diagnostics / repairs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or diagnostics
+      description: >-
+        Enable debug logging for `custom_components.midnight_alerts`, and/or
+        attach the integration's Diagnostics download (Settings → Devices &
+        services → Midnight 911 Integration → Download diagnostics). The
+        diagnostics download already redacts your API key and PIN hashes, so
+        it's safe to attach directly.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I've searched existing issues and this hasn't already been reported.
+          required: true
+        - label: This is not a security vulnerability (see SECURITY.md if it is).
+          required: true
