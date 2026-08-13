@@ -8,5 +8,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/midnight-security/midnight-homeassistant-911/issues",
   "requirements": ["sentry-sdk==2.66.1", "bcrypt==5.0.0"],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
