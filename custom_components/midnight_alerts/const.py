@@ -1,6 +1,5 @@
 """Constants for Midnight Alerts integration."""
 
-import os
 from typing import Final
 
 from homeassistant.components.alarm_control_panel import (
